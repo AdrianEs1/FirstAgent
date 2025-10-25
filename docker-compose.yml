@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agente-backend
+    #command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]
+    ports:
+      - "5000:5000"   # Mapea el puerto del contenedor al host
+    env_file:
+      - ./backend/.env   # Variables de entorno del backend
+    volumes:
+      - ./backend:/app   # (opcional) para desarrollo en vivo
+    depends_on:
+      - db
+    networks:
+      - agente-network
+
+  frontend:
+    build:
+      context: ./frontend/vite-project
+      dockerfile: Dockerfile
+    container_name: agente-frontend
+    ports:
+      - "5173:80"  # Externo: interno
+    depends_on:
+      - backend
+    networks:
+      - agente-network
+
+  db:
+    image: postgres:16
+    container_name: agente-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+      POSTGRES_DB: ${POSTGRES_DB:-agente_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - agente-network
+
+networks:
+  agente-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

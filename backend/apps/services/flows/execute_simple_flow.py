@@ -1,0 +1,117 @@
+from typing import List, Dict
+import json
+from apps.services.llm.small_llm_service import call_small_llm
+
+
+async def select_simple_method(tool_name: str, methods: List[Dict], user_input: str):
+    """Selecciona método simple usando Groq con mejor lógica"""
+    
+    methods_info = []
+    for method in methods:
+        method_info = {
+            "name": method["name"],
+            "signature": method.get("signature", ""),
+            "description": method.get("description", "")
+        }
+        methods_info.append(method_info)
+    
+    methods_json = json.dumps(methods_info, indent=2, ensure_ascii=False)
+    
+    selection_prompt = f"""
+    HERRAMIENTA: {tool_name}
+    SOLICITUD DEL USUARIO: "{user_input}"
+   
+    MÉTODOS DISPONIBLES:
+    {methods_json}
+   
+    Esta es una tarea SIMPLE que requiere UN SOLO método.
+   
+    REGLAS IMPORTANTES:
+    1. Selecciona el método más apropiado basado en la solicitud
+    2. USA SOLO los parámetros que están en la signature del método
+    3. NO agregues parámetros como "html", "format" u otros que no estén en la signature, No incluyas user_id
+    4. Para send_email, los parámetros son: to, subject, body (y **kwargs)
+    5. Si el usuario menciona cantidad específica (ej: "3 emails"), úsala
+    6. Si el usuario pide formato HTML, incluye HTML tags directamente en el contenido (body)
+    
+   
+    EJEMPLOS CORRECTOS:
+    - "lista mis últimos 3 emails" → {{"method": "list_emails", "args": {{"max_results": 3}}}}
+    - "envía email a juan@test.com con asunto hola" → {{"method": "send_email", "args": {{"to": "juan@test.com", "subject": "hola", "body": "dynamic"}}}}
+    - "envía email HTML a juan@test.com" → {{"method": "send_email", "args": {{"to": "juan@test.com", "subject": "...", "body": "<h1>Título</h1><p>Contenido</p>"}}}}
+    - "prueba conexión" → {{"method": "test_connection", "args": {{}}}}
+   
+    INCORRECTO (NO hagas esto):
+    - {{"method": "send_email", "args": {{"to": "...", "html": true}}}} ← "html" no es parámetro válido
+    _ EVITA añadir Backticks en la Respuesta
+   
+    Para la solicitud: "{user_input}"
+   
+    Analiza la signature del método y usa SOLO parámetros válidos.
+   
+    Responde SOLO con JSON válido, TENIENDO EN CUENTA LOS FORMATOS SOLICITADOS POR EL USUARIO:
+    {{"method": "nombre_método", "args": {{"parametro_valido": "valor"}}}}
+    """
+    
+    try:
+        selection_text = await call_small_llm(selection_prompt)
+        print(f"🎯 Selección de Groq: {selection_text}")
+        
+        # Limpiar respuesta si viene con markdown
+        if selection_text.strip().startswith('```'):
+            lines = selection_text.strip().split('\n')
+            json_lines = []
+            in_json = False
+            for line in lines:
+                if line.strip().startswith('```') and 'json' in line.lower():
+                    in_json = True
+                    continue
+                elif line.strip() == '```':
+                    in_json = False
+                    continue
+                elif in_json:
+                    json_lines.append(line)
+            selection_text = '\n'.join(json_lines)
+        
+        selection_data = json.loads(selection_text.strip())
+        
+        # Validar que el método seleccionado existe
+        valid_method_names = {method['name'] for method in methods}
+        selected_method = selection_data.get("method")
+        
+        if selected_method not in valid_method_names:
+            print(f"❌ ERROR: Método '{selected_method}' no existe en {tool_name}")
+            print(f"   Métodos válidos: {list(valid_method_names)}")
+            return {"error": f"Método '{selected_method}' no válido. Métodos disponibles: {list(valid_method_names)}"}
+        
+        # Validar estructura
+        if "method" not in selection_data or "args" not in selection_data:
+            return {"error": f"Respuesta mal formateada: {selection_text}"}
+        
+        # Filtrar argumentos inválidos que puedan causar problemas de parsing
+        args = selection_data.get("args", {})
+        filtered_args = {}
+        
+        for key, value in args.items():
+            # Filtrar parámetros problemáticos específicos
+            if key == "html" and selected_method == "send_email":
+                # El método send_email no acepta "html", usa content_type
+                if value:
+                    filtered_args["content_type"] = "text/html"
+                continue
+            else:
+                filtered_args[key] = value
+        
+        selection_data["args"] = filtered_args
+        print(f"🔧 Argumentos filtrados: {filtered_args}")
+            
+        return selection_data
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ Error parseando selección: {selection_text}")
+        print(f"❌ Error JSON: {e}")
+        return {"error": f"Respuesta JSON inválida: {selection_text}"}
+    
+    except Exception as e:
+        print(f"❌ Error en select_simple_method: {e}")
+        return {"error": f"Error inesperado: {str(e)}"}
