@@ -6,7 +6,8 @@ WORKDIR /app
 
 # Copiar e instalar dependencias
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir --retries 5 -r requirements.txt
+
 
 # Copiar todo el código del backend al contenedor
 COPY . .
