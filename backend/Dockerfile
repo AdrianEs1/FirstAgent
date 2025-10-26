@@ -2,11 +2,11 @@
 FROM python:3.11-slim AS builder
 WORKDIR /app
 
-# Instalar herramientas mínimas para compilar
+# Instalar herramientas necesarias para compilar
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential gcc && \
     rm -rf /var/lib/apt/lists/*
 
-# Instalar dependencias sin cache
+# Instalar dependencias
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -14,12 +14,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 FROM python:3.11-slim
 WORKDIR /app
 
-# Copiar solo las dependencias ya compiladas
+# Copiar dependencias compiladas
 COPY --from=builder /usr/local/lib/python3.11 /usr/local/lib/python3.11
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copiar tu aplicación
+# Copiar aplicación
 COPY . .
 
+# Render detectará este puerto automáticamente
 EXPOSE 5000
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]
+
+# Ejecutar FastAPI con el puerto dinámico de Render
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-5000}"]
