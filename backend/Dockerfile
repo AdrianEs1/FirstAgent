@@ -1,19 +1,29 @@
-# Imagen base de Python
-FROM python:3.11-slim
+# Etapa 1: build (instalación de dependencias)
+FROM python:3.11-slim AS builder
 
-# Crear directorio de trabajo
 WORKDIR /app
 
-# Copiar e instalar dependencias
+# Instala herramientas mínimas necesarias para compilar dependencias
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+# Instalar dependencias sin cache
 COPY requirements.txt .
-RUN pip install --no-cache-dir --retries 5 -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
+# Etapa 2: imagen final (limpia)
+FROM python:3.11-slim
 
-# Copiar todo el código del backend al contenedor
+WORKDIR /app
+
+# Copiar dependencias ya instaladas desde la imagen builder
+COPY --from=builder /usr/local/lib/python3.11 /usr/local/lib/python3.11
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copiar solo tu aplicación (no todo el entorno local)
 COPY . .
 
-# Exponer el puerto (el mismo que usa tu app.py)
 EXPOSE 5000
 
-# Comando para iniciar el servidor
+# Comando para producción
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]
