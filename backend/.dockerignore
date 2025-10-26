@@ -1,0 +1,10 @@
+__pycache__/
+.git/
+.venv/
+venv/
+*.mp4
+*.wav
+*.pt
+*.bin
+*.zip
+.cache/
