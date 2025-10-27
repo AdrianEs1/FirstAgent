@@ -4,13 +4,13 @@ import axios from "axios";
 
 // Crear instancia de axios con configuración correcta
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: "https://adrianarchitecia-optimusagent.hf.space", // 👈 Pon aquí tu URL de Hugging Face
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true  // ← AGREGAR ESTO GLOBALMENTE
-    
+  withCredentials: false  // 👈 Cambia a false para Hugging Face (no necesitas cookies cross-origin)
 });
+
 
 
 
