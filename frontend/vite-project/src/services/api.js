@@ -1,8 +1,10 @@
 import axios from "axios";
 
+VITE_API_URL="https://adrianarchitecia-optimusagent.hf.space"
+
 // Crear instancia de axios con configuración correcta
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: VITE_API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
