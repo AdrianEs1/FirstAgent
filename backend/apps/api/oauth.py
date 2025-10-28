@@ -115,7 +115,7 @@ async def gmail_callback(
                         status: 'success',
                         app: 'gmail',
                         email: '{oauth_conn.meta_data.get('email', '')}'
-                    }}, 'http://localhost:5173');
+                    }}, 'https://optimusagent-app.onrender.com');
                     
                     // Cerrar popup después de 500ms
                     setTimeout(() => window.close(), 500);
@@ -146,7 +146,7 @@ async def gmail_callback(
                         status: 'error',
                         app: 'gmail',
                         message: '{str(e)}'
-                    }}, 'http://localhost:5173');
+                    }}, 'https://optimusagent-app.onrender.com');
                     
                     setTimeout(() => window.close(), 2000);
                 }} else {{
