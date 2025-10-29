@@ -13,7 +13,7 @@ async def call_small_llm(promp: str) -> str:
     )
 
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {GROQ_API_KEY.strip()}",
         "Content-Type": "application/json"
     }
 
