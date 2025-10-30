@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchAgentTask } from "../services/agentServices";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import LoginCard from "../components/Login";
@@ -13,36 +12,12 @@ function Home() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [showTaskModal, setShowTaskModal] = useState(false);
   
   const [task, setTask] = useState("");
-  const [taskResponse, setTaskResponse] = useState("");
-  const [taskLoading, setTaskLoading] = useState(false);
+  
 
   // Si ya está autenticado, redirigir al dashboard
   
-
-  const handleTaskSubmit = async (e) => {
-    e.preventDefault();
-    setTaskLoading(true);
-    setShowTaskModal(true);
-
-    if (!task) {
-      setTaskResponse("Por favor escribe una tarea");
-      setTaskLoading(false);
-      return;
-    }
-
-    try {
-      const data = { message: task };
-      const response = await fetchAgentTask(data);
-      setTaskResponse(response.message);
-    } catch (error) {
-      setTaskResponse("Error en el servidor");
-    } finally {
-      setTaskLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -103,47 +78,58 @@ function Home() {
 
       {/* HERO */}
       <main className="flex-grow flex flex-col items-center justify-center text-center px-4">
+        {/* HERO */}
         <section className="py-12 md:py-20">
           <h2 className="text-4xl md:text-6xl font-extrabold text-gray-800 mb-4">
             Bienvenido a <span className="text-cyan-600">OptimusAgent</span>
           </h2>
 
-          <p className="max-w-2xl mx-auto text-gray-600 text-base md:text-lg mb-6">
-            Te ayudamos en tus tareas diarias de forma rápida, sencilla y segura.
+          <p className="max-w-2xl mx-auto text-gray-600 text-base md:text-lg mb-10">
+            Tu asistente inteligente diseñado para optimizar la gestión de información, 
+            automatizar procesos y ofrecerte respuestas precisas, rápidas y seguras.
           </p>
 
-          {/* FORM */}
-          <form
-            onSubmit={handleTaskSubmit}
-            className="bg-white p-6 rounded-xl shadow-lg max-w-md mx-auto w-full"
-          >
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">
-              ¿Qué quieres hacer hoy?
+          {/* CTA (call to action) */}
+          <div className="bg-white p-8 rounded-xl shadow-lg max-w-lg mx-auto">
+            <h3 className="text-2xl font-semibold text-gray-800 mb-4">
+              Explora todo lo que OptimusAgent puede hacer por ti
             </h3>
-
-            <input
-              type="text"
-              value={task}
-              onChange={(e) => setTask(e.target.value)}
-              placeholder="Escribe tu tarea..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
-            />
-
-            <button
-              type="submit"
-              className="w-full mt-4 bg-cyan-600 text-white font-medium px-4 py-2 rounded-lg hover:bg-cyan-700 transition"
-            >
-              Enviar
-            </button>
-          </form>
+            <p className="text-gray-600 mb-6">
+              Inicia sesión o crea una cuenta para acceder a tu asistente personalizado 
+              y comenzar a aprovechar todas sus funciones.
+            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => setShowLoginModal(true)}
+                className="bg-cyan-600 text-white px-5 py-2 rounded-lg hover:bg-cyan-700 transition"
+              >
+                Iniciar Sesión
+              </button>
+              <button
+                onClick={() => setShowRegisterModal(true)}
+                className="border border-cyan-600 text-cyan-600 px-5 py-2 rounded-lg hover:bg-cyan-50 transition"
+              >
+                Registrarse
+              </button>
+            </div>
+          </div>
         </section>
 
         {/* FEATURES */}
-        <section className="w-full max-w-6xl grid gap-6 md:grid-cols-3 mt-12">
+        <section className="w-full max-w-6xl grid gap-6 md:grid-cols-3 mt-16">
           {[
-            { title: "Fácil de usar", text: "Interfaz clara y amigable para todos los usuarios." },
-            { title: "Seguro", text: "Tus datos siempre protegidos y encriptados." },
-            { title: "Soporte 24/7", text: "Servicio inmediato para resolver cualquier duda." },
+            { 
+              title: "Gestión Inteligente de Información", 
+              text: "Centraliza y organiza tus datos con un asistente que entiende el contexto y te ayuda a encontrar lo que necesitas en segundos." 
+            },
+            { 
+              title: "Automatización de Procesos", 
+              text: "Optimiza tus tareas diarias y reduce el trabajo manual con flujos automáticos impulsados por IA." 
+            },
+            { 
+              title: "Aprendizaje y Adaptabilidad", 
+              text: "OptimusAgent aprende de tus interacciones para ofrecerte respuestas más útiles y personalizadas cada vez." 
+            },
           ].map((f, i) => (
             <div
               key={i}
@@ -161,29 +147,7 @@ function Home() {
         © 2025 OptimusAgent. Todos los derechos reservados.
       </footer>
 
-      {/* MODAL - TAREA */}
-      {showTaskModal && (
-        <div className="fixed inset-0 flex justify-center items-center bg-black/40 z-50">
-          <div className="bg-white p-6 rounded-xl shadow-lg w-[90%] max-w-md text-center">
-            {taskLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-cyan-600 mx-auto mb-4"></div>
-                <p className="text-gray-700 font-medium">Por favor espera...</p>
-              </>
-            ) : (
-              <>
-                <p className="text-gray-800 mb-4">{taskResponse}</p>
-                <button
-                  onClick={() => setShowTaskModal(false)}
-                  className="mt-2 px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700"
-                >
-                  Aceptar
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      
 
       {/* MODAL - LOGIN */}
       {showLoginModal && (

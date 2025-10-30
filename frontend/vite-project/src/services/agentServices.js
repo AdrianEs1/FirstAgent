@@ -73,19 +73,6 @@ export const sendMessageToConversation = async (conversation_Id, message, user_i
   }
 };
 
-//Funcion para dar ordenes sin estar logueado
-export const fetchAgentTask = async data => {
-  try{
-    const response = await api.post('/ask', data);
-
-    return response.data;
-  
-  } catch (error) {
-    const errorMessage = error.response?.data?.message || "Ocurrió un error desconocido.";
-    throw new Error(errorMessage);
-  }
-};
-
 
 // ✅ NUEVOS: Conversations
 export const fetchConversations = async () => {

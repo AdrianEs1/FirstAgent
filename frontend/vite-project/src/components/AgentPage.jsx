@@ -114,7 +114,7 @@ function AgentPage() {
         // Escucha mensajes del popup cuando finaliza OAuth
         const handleMessage = (event) => {
           // 🔒 Seguridad: valida el origen
-          if (event.origin !== "http://localhost:5000") return;
+          if (event.origin !== "https://adrianarchitecia-optimusagent.hf.space") return;
 
           if (event.data.status === "success" && event.data.app === appId) {
             setConnectedApps((prev) => ({ ...prev, [appId]: true }));
