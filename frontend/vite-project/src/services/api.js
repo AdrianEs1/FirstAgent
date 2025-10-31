@@ -8,7 +8,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: false  // 👈 Cambia a false para Hugging Face (no necesitas cookies cross-origin)
+  withCredentials: true  // 👈 Cambia a false para Hugging Face (no necesitas cookies cross-origin)
 });
 
 
