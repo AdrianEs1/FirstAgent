@@ -28,16 +28,6 @@ async def call_llm(prompt: str) -> str:
     else:
         return "No se pudo generar respuesta"
 
-    
-    """
-    Envía un prompt al modelo Gemini y devuelve el texto generado (async safe)
-    
-    enhanced_prompt = f
-    Responde de manera conversacional y natural, como si fueras un asistente hablando. 
-    No uses formato markdown, asteriscos, o listas numeradas.
-    Usa un lenguaje fluido y natural para ser leído en voz alta.
-    
-    Pregunta del usuario: {prompt}
-    """
+
 
     

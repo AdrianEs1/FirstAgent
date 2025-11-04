@@ -454,7 +454,7 @@ async def execute_llm_step(step: dict, context: IntelligentContext, user_input: 
 
     
     try:
-        from services.llm.llm_service import call_llm
+        from apps.services.llm.llm_service import call_llm
         llm_result = await call_llm(llm_prompt)
         
         # Limpiar resultado si viene envuelto en markdown
