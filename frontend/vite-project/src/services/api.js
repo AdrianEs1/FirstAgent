@@ -1,6 +1,8 @@
 import axios from "axios";
 
 
+//http://localhost:5000/ En LOCAL 
+//https://adrianarchitecia-optimusagent.hf.space En Producción
 
 // Crear instancia de axios con configuración correcta
 const api = axios.create({

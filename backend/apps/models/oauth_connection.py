@@ -37,9 +37,18 @@ class OAuthConnection(Base):
             return encryption.encrypt(value)
         return value
     
+    """def _is_encrypted(self, value: str) -> bool:
+        Verifica si un token ya está encriptado (Fernet empieza con 'gAAAAA')
+        return value.startswith('gAAAAA')"""
+    
     def _is_encrypted(self, value: str) -> bool:
-        """Verifica si un token ya está encriptado (Fernet empieza con 'gAAAAA')"""
-        return value.startswith('gAAAAA')
+        try:
+            encryption.decrypt(value)
+            return True
+        except Exception:
+            return False
+
+
     
     def get_access_token(self) -> str:
         """Desencripta y retorna el access token"""
@@ -55,3 +64,7 @@ class OAuthConnection(Base):
             self.access_token = access_token  # Se encripta automáticamente al asignar
         if refresh_token:
             self.refresh_token = refresh_token
+
+    def is_token_expired(self) -> bool:
+        return datetime.utcnow() >= self.token_expires_at
+

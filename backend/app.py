@@ -1,8 +1,9 @@
+from apps.api import oauth
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import lifespan, logger
 #from routes import ws_server
-from apps.api import auth, call_model, oauth,conversations
+from apps.api import auth, call_model, conversations
 
 app = FastAPI(
     title="Agente IA API",

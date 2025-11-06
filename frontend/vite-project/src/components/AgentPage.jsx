@@ -69,18 +69,24 @@ function AgentPage() {
 
   // ✅ Verificar estado de OAuth al cargar
   const checkOAuthStatus = async () => {
+    const services = ["gmail", "drive", "calendar"];
     try {
-      const gmailStatus = await getOAuthStatus("gmail");
-      setConnectedApps((prev) => ({
-        ...prev,
-        gmail: gmailStatus.connected,
-      }));
+      const statuses = await Promise.all(
+        services.map((s) => getOAuthStatus(s).catch(() => ({ connected: false })))
+      );
+
+      const newStates = services.reduce((acc, s, i) => {
+        acc[s] = statuses[i].connected;
+        return acc;
+      }, {});
+
+      setConnectedApps((prev) => ({ ...prev, ...newStates }));
     } catch (error) {
       console.error("Error verificando OAuth:", error);
     }
   };
 
-  // ✅ Conexión/desconexión de apps (versión optimizada)
+  // ✅ Conexión/desconexión unificada (con popup incluido en connectOAuth)
   const handleConnectApp = async (appId) => {
     const isConnected = connectedApps[appId];
 
@@ -95,46 +101,18 @@ function AgentPage() {
         alert(`Error al desconectar ${appId}`);
       }
     } else {
-      // 🔗 Conectar app
+      // 🔗 Conectar app (popup manejado desde connectOAuth)
       try {
-        const { authorization_url } = await connectOAuth(appId);
-
-        // Abre la ventana emergente de OAuth
-        const popup = window.open(
-          authorization_url,
-          `${appId}-oauth`,
-          "width=600,height=700,left=200,top=100"
-        );
-
-        if (!popup) {
-          alert("Por favor, permite ventanas emergentes para continuar con la autenticación.");
-          return;
-        }
-
-        // Escucha mensajes del popup cuando finaliza OAuth
-        const handleMessage = (event) => {
-          // 🔒 Seguridad: valida el origen
-          if (event.origin !== "https://adrianarchitecia-optimusagent.hf.space") return;
-
-          if (event.data.status === "success" && event.data.app === appId) {
-            setConnectedApps((prev) => ({ ...prev, [appId]: true }));
-            popup.close();
-            window.removeEventListener("message", handleMessage);
-            alert(`${appId} conectado exitosamente`);
-          } else if (event.data.status === "error") {
-            popup.close();
-            window.removeEventListener("message", handleMessage);
-            alert(`Error al conectar ${appId}`);
-          }
-        };
-
-        window.addEventListener("message", handleMessage);
+        const result = await connectOAuth(appId);
+        setConnectedApps((prev) => ({ ...prev, [appId]: true }));
+        alert(`${appId} conectado exitosamente (${result.email || "sin correo"})`);
       } catch (error) {
         console.error(`Error conectando ${appId}:`, error);
         alert(`Error al conectar ${appId}`);
       }
     }
   };
+
 
 
   // ✅ Enviar mensaje (crea conversación automáticamente si no existe)

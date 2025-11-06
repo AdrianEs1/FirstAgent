@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Mail, Music, Video, LogOut, Settings, User } from 'lucide-react';
+import { ChevronDown, Mail, Calendar, Folder, LogOut, Settings, User } from 'lucide-react';
+//import { Mail, Folder, Calendar } from "lucide-react";
+
 
 function Header({ onConnectApp, connectedApps }) {
     const { user, logout } = useAuth();
@@ -10,10 +12,12 @@ function Header({ onConnectApp, connectedApps }) {
     const [showUserDropdown, setShowUserDropdown] = useState(false);
 
     const apps = [
+
         { id: 'gmail', name: 'Gmail', icon: Mail, color: 'text-red-500' },
-        { id: 'youtube', name: 'YouTube', icon: Video, color: 'text-red-600' },
-        { id: 'spotify', name: 'Spotify', icon: Music, color: 'text-green-500' }
-    ];
+        { id: 'drive', name: 'Google Drive', icon: Folder, color: 'text-blue-500' },
+        { id: 'calendar', name: 'Google Calendar', icon: Calendar, color: 'text-yellow-500' }
+        ];
+
 
     const handleLogout = async () => {
         await logout();

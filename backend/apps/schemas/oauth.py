@@ -16,9 +16,11 @@ class OAuthConnectionResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class OAuthAuthorizationURL(BaseModel):
-    authorization_url: str
-    state: str
+class OAuthConnectResponse(BaseModel):
+    authorization_url: Optional[str] = None
+    state: Optional[str] = None
+    status: Optional[str] = None
+    message: Optional[str] = None
 
 class OAuthCallbackResponse(BaseModel):
     success: bool

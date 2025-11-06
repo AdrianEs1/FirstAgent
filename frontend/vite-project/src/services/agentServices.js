@@ -134,18 +134,73 @@ export const seachConversation = async (conversationTitle) => {
 };
 
 
-// ✅ NUEVOS: OAuth
-export const connectOAuth = async (service = 'gmail') => {
-  try{
-    const response = await api.get(`/api/oauth/${service}/connect`, { withCredentials: true});
+// ✅ NUEVO: Maneja reconexión sin OAuth
+export const connectOAuth = async (service = "gmail") => {
+  try {
+    const data = await api
+      .get(`/api/oauth/${service}/connect`, { withCredentials: true })
+      .then((res) => res.data);
 
-    return response.data;
-    
+    // 🔹 Caso 1: Reconexion automática
+    if (data.status === "reconnected") {
+      // Puedes mostrar un toast, modal o alerta
+      alert(data.message || `${service} reconectado correctamente.`);
+      return {
+        connected: true,
+        service,
+        reconnected: true,
+        message: data.message,
+      };
+    }
+
+    // 🔹 Caso 2: Flujo OAuth normal
+    const { authorization_url } = data;
+
+    if (!authorization_url) {
+      throw new Error("No se recibió una URL de autorización válida.");
+    }
+
+    const popup = window.open(
+      authorization_url,
+      `${service}-oauth`,
+      "width=600,height=700,left=200,top=100"
+    );
+
+    if (!popup) {
+      throw new Error("Por favor, permite ventanas emergentes para continuar con la autenticación.");
+    }
+
+    // Esperar mensaje del callback OAuth
+    return new Promise((resolve, reject) => {
+      const handleMessage = (event) => {
+        // ⚠️ Seguridad: valida el origen
+        if (event.origin !== window.location.origin) return;
+        if (event.data.app !== service) return;
+
+        window.removeEventListener("message", handleMessage);
+        popup.close();
+
+        if (event.data.status === "success") {
+          resolve({
+            connected: true,
+            email: event.data.email,
+            service,
+            reconnected: false,
+          });
+        } else {
+          reject(new Error(event.data.message || "Error de autenticación"));
+        }
+      };
+
+      window.addEventListener("message", handleMessage);
+    });
   } catch (error) {
-    const errorMessage = error.response?.data?.message || "Ocurrió un error desconocido.";
-    throw new Error(errorMessage);
+    const message = error.response?.data?.message || error.message || "Error en conexión OAuth.";
+    throw new Error(message);
   }
 };
+
+
 
 export const getOAuthStatus= async (service = 'gmail') => {
   try{
