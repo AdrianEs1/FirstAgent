@@ -46,7 +46,7 @@ function AuthProvider({ children }) {
     try {
       const token = localStorage.getItem("token");
       if (token) {
-        await fetch("https://adrianarchitecia-optimusagent.hf.space/api/auth/logout", {
+        await fetch("http://localhost:5000/api/auth/logout", {
           method: "POST",
           credentials: "include",
           headers: {

@@ -2,8 +2,7 @@ from apps.api import oauth
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import lifespan, logger
-#from routes import ws_server
-from apps.api import auth, call_model, conversations
+from apps.api import auth, call_model, conversations, ws_chat
 
 app = FastAPI(
     title="Agente IA API",
@@ -30,7 +29,7 @@ app.add_middleware(
 # Incluir routers
 app.include_router(call_model.router)
 #app.include_router(ws_server.router)
-
+app.include_router(ws_chat.router)  # ✨ NUEVO
 app.include_router(auth.router, prefix="/api")
 app.include_router(oauth.router, prefix="/api")
 app.include_router(conversations.router, prefix="/api")

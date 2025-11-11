@@ -1,5 +1,6 @@
 from typing import Callable, Dict, Any
 from tools.App_Email.dic_email_tool import GMAIL_TOOL_METHODS
+from tools.App_Drive.dic_drive_tool import DRIVE_TOOL_METHODS
 
 class ToolRegistry:
     def __init__(self):
@@ -29,6 +30,9 @@ TOOL_REGISTRY = ToolRegistry()
 
 # 🔹 Registrar Gmail como un grupo de herramientas
 TOOL_REGISTRY.register_tool_group("gmail", GMAIL_TOOL_METHODS)
+# Registrar Drive como grupo de herramientas
+TOOL_REGISTRY.register_tool_group("drive", DRIVE_TOOL_METHODS)
+
 
 print("🔧 TOOL_REGISTRY cargado con herramientas:")
 for name, tool in TOOL_REGISTRY.tools.items():

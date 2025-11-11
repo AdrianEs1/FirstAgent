@@ -12,14 +12,26 @@ from sqlalchemy.orm import Session
 from apps.models.oauth_connection import OAuthConnection
 from apps.database import SessionLocal
 from datetime import datetime, timedelta
+from tools.google_service_base import GoogleServiceBase
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 
-def get_gmail_service(user_id: str):
-    """
+#SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
+
+class GmailService(GoogleServiceBase):
+    def __init__(self):
+        super().__init__("gmail")
+    
+    def _ping_service(self, service):
+        # Gmail: obtener etiquetas como prueba de conexión
+        service.users().labels().list(userId="me").execute()
+
+gmail = GmailService()
+
+"""def get_gmail_service(user_id: str):
+    
     Obtiene el servicio de Gmail usando los tokens del usuario desde la BD.
     Puede recibir tanto el ID interno (user_id) como el ID de Google (service_user_id).
-    """
+    
     db = SessionLocal()
     try:
         # Buscar primero por user_id (UUID de tu sistema)
@@ -80,7 +92,7 @@ def get_gmail_service(user_id: str):
         return service
 
     finally:
-        db.close()
+        db.close()"""
 
 
 
@@ -95,7 +107,7 @@ def send_email(user_id: str, to: str, subject: str, body: str, **kwargs) -> Dict
         body: Contenido del email
     """
     try:
-        service = get_gmail_service(user_id)
+        service = gmail.get_service(user_id)
        
         message = MIMEMultipart()
         message['to'] = to
@@ -143,7 +155,7 @@ def send_email(user_id: str, to: str, subject: str, body: str, **kwargs) -> Dict
 def list_emails(user_id: str, query: str = "inbox", max_results: int = 5, **kwargs) -> Dict[str, Any]:
     """Lista emails del usuario"""
     try:
-        service = get_gmail_service(user_id)
+        service = gmail.get_service(user_id)
         results = service.users().messages().list(userId="me", q=query, maxResults=max_results).execute()
         messages = results.get("messages", [])
         
@@ -206,7 +218,7 @@ def list_emails(user_id: str, query: str = "inbox", max_results: int = 5, **kwar
 def read_email(user_id: str, message_id: str, **kwargs) -> Dict[str, Any]:
     """Lee un email específico"""
     try:
-        service = get_gmail_service(user_id)
+        service = gmail.get_service(user_id)
         msg = service.users().messages().get(userId="me", id=message_id, format="full").execute()
        
         headers = msg.get('payload', {}).get('headers', [])
@@ -255,27 +267,8 @@ def read_email(user_id: str, message_id: str, **kwargs) -> Dict[str, Any]:
 
 
 def test_connection(user_id: str, **kwargs) -> Dict[str, Any]:
-    """Prueba la conexión de Gmail del usuario"""
-    try:
-        service = get_gmail_service(user_id)
-        profile = service.users().getProfile(userId="me").execute()
-        email = profile["emailAddress"]
-        total_messages = profile.get("messagesTotal", 0)
-        total_threads = profile.get("threadsTotal", 0)
-        
-        return {
-            "success": True,
-            "emailAddress": email,
-            "messagesTotal": total_messages,
-            "threadsTotal": total_threads,
-            "message": f"✅ **Gmail conectado exitosamente**\n\n📧 **Cuenta:** {email}\n📊 **Total mensajes:** {total_messages:,}\n🧵 **Total conversaciones:** {total_threads:,}\n🔗 **Estado:** Autenticado y listo para usar"
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "message": f"❌ **Error de conexión Gmail**\n\n🚫 **Error:** {str(e)}\n💡 **Sugerencia:** Verifica tu autenticación y permisos"
-        }
+    connect_service = gmail.test_connection(user_id)
+    return  connect_service 
 
 
 # Funciones auxiliares sin cambios

@@ -41,8 +41,8 @@ class IntelligentContext:
         # Almacenar resultado completo con prefijo del método
         self.data[f"{method_name}_result"] = result
     
-    def _extract_from_dict(self, method_name: str, data: dict):
-        """Extrae datos útiles de un diccionario"""
+    """def _extract_from_dict(self, method_name: str, data: dict):
+        Extrae datos útiles de un diccionario
         
         # Buscar listas de objetos con IDs
         for key, value in data.items():
@@ -65,7 +65,48 @@ class IntelligentContext:
             # Buscar contenido de texto
             elif any(text_key in key.lower() for text_key in ['content', 'body', 'text', 'message']):
                 self.data[f"{method_name}_content"] = value
+                self.data[f"last_content"] = value"""
+    
+    def _extract_from_dict(self, method_name: str, data: dict):
+        """Extrae datos útiles de un diccionario con prioridad en content/body"""
+        
+        # Buscar listas de objetos con IDs
+        for key, value in data.items():
+            if isinstance(value, list) and value:
+                # Si es lista de diccionarios con 'id'
+                if isinstance(value[0], dict) and 'id' in value[0]:
+                    ids = [item['id'] for item in value if 'id' in item]
+                    self.data[f"{key}_ids"] = ids
+                    self.data[f"{method_name}_{key}_ids"] = ids
+                    
+                    # Almacenar también los objetos completos
+                    self.data[f"{key}_data"] = value
+                    self.data[f"{method_name}_{key}_data"] = value
+            
+            # Buscar IDs individuales
+            elif 'id' in key.lower():
+                self.data[f"{method_name}_id"] = value
+                self.data[f"last_id"] = value
+        
+        # 🔥 PRIORIDAD: Buscar primero content/body (contenido real del documento/email)
+        content_found = False
+        for key, value in data.items():
+            if key.lower() in ['content', 'body']:  # Solo estas claves principales
+                self.data[f"{method_name}_content"] = value
                 self.data[f"last_content"] = value
+                content_found = True
+                print(f"✅ Contenido principal detectado en clave '{key}' ({len(str(value))} caracteres)")
+                break  # Salir inmediatamente para evitar sobrescritura
+        
+        # Si no se encontró content/body, buscar text o message como fallback
+        if not content_found:
+            for key, value in data.items():
+                if key.lower() in ['text', 'message']:
+                    self.data[f"{method_name}_content"] = value
+                    self.data[f"last_content"] = value
+                    print(f"ℹ️ Contenido alternativo detectado en clave '{key}' ({len(str(value))} caracteres)")
+                    break
+
     
     def _extract_from_list(self, method_name: str, data: list):
         """Extrae datos útiles de una lista"""

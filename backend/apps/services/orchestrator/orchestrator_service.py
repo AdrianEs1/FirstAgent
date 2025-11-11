@@ -8,6 +8,7 @@ from apps.services.context.intelligent_context import IntelligentContext
 from apps.services.flows.execute_simple_flow import select_simple_method
 from apps.services.flows.execute_complex_flow import plan_method_sequence, execute_method_sequence
 from apps.services.utils.utils import get_function_signature
+from apps.services.prompt.prompt_base import get_decision_prompt
 
 
 async def evolved_self_reflection(tool_name: str, user_input: str) -> dict:
@@ -58,64 +59,9 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
     # === 1. Decisión inicial con Groq ===
     available_tools = TOOL_REGISTRY.list_tools()
     print(f"🔧 Herramientas disponibles: {available_tools}")
+    
+    decision_prompt = get_decision_prompt(user_input, context, available_tools)
 
-    decision_prompt = f"""
-    ENTRADA DEL USUARIO: "{user_input}"
-    CONTEXTO: {context}
-
-    HERRAMIENTAS DISPONIBLES: {available_tools}
-
-    Clasifica la tarea según estos tipos EXACTOS:
-
-    **SIMPLE**: Una sola acción directa con UNA herramienta y UN método
-    Ejemplos:
-    - ✅ "lista mis emails"
-    - ✅ "envía un email a juan@email.com"  
-    - ✅ "busca videos de Python"
-    - ✅ "lee el primer email"
-
-    **COMPLEX**: Una sola acción que requiere contenido detallado AUTO-GENERADO
-    - ✅ "envía un email detallado sobre el proyecto Alpha a mi jefe"
-    - ✅ "crea un reporte completo de ventas"
-    - ✅ "genera una presentación sobre IA"
-
-    **MULTI_TOOL**: Múltiples métodos secuenciales en la MISMA herramienta
-    - ✅ "lee mis emails Y envíame un resumen"
-    - ✅ "busca videos de IA Y analiza los más populares"  
-    - ✅ "lista emails Y lee el primero Y responde"
-
-    **CONVERSATION**: Chat general sin herramientas
-    - ✅ "hola, ¿cómo estás?"
-    - ✅ "explícame qué es la inteligencia artificial"
-    - ✅ "cuéntame un chiste"
-
-    REGLAS CLAVE:
-    1. Si solo pide LISTAR/VER/BUSCAR algo = SIMPLE
-    2. Si pide GENERAR contenido complejo = COMPLEX  
-    3. Si usa "Y", "LUEGO", "DESPUÉS" o implica varios pasos = MULTI_TOOL
-    4. Si es conversación general = CONVERSATION
-
-
-    EJEMPLOS ESPECÍFICOS:
-    - "lista mis últimos 5 emails" → {{"action": "gmail", "type": "simple"}}
-    - "busca el video más popular" → {{"action": "youtube", "type": "simple"}}  
-    - "envía email detallado sobre mi proyecto" → {{"action": "gmail", "type": "complex"}}
-    - "lee emails y envía resumen" → {{"action": "gmail", "type": "multi_tool"}}
-    - "Hola como estas?" → {{"action": "conversation"}}
-
-    Analiza: "{user_input}"
-
-    ¿Cuántas acciones distintas pide? ¿Requiere generación de contenido complejo?
-
-    Recomendaciones para la REPSUESTA SOLO con JSON válido:
-    -action: corresponde a las herramientas que tenemos disponibles, como gmail, o youtbe, etc...
-    -type: tipo de acción
-    FORMATO INDICADO REEMPLAZA LOS VALORES CORRECTAMENTE:
-
-    {{"action": "tools", "type": "tipo"}}
-
-
-    """
 
     decision_text = await call_small_llm(decision_prompt)
     print(f"🤖 Decisión de Groq: {decision_text}")
@@ -129,11 +75,11 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
             "error": f"[ORCH] Decisión inválida de Groq: {decision_text}"
         }
 
-    action = decision.get("action")
+    actions = decision.get("actions", [])
     task_type = decision.get("type", "simple")
 
     # === 2. Manejar conversación general ===
-    if action == "conversation":
+    if task_type == "conversation":
         conversation_prompt = f"""
         El usuario ha dicho: "{user_input}"
         Contexto: {context}
@@ -150,25 +96,48 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
         }
 
     # === 3. Manejar herramientas ===
-    if action not in available_tools:
+    # ✅ Validar que las herramientas detectadas existen
+    missing = [t for t in actions if t not in available_tools]
+    if missing:
         return {
             "success": False,
             "message": None,
-            "error": f"[ORCH] Herramienta '{action}' no disponible"
+            "error": f"[ORCH] Herramientas no disponibles: {missing}"
         }
 
     # === 4. Self-reflection evolucionado ===
-    reflection_result = await evolved_self_reflection(action, user_input)
-    
-    if "error" in reflection_result:
-        return {
-            "success": False,
-            "message": None,
-            "error": f"[ORCH] {reflection_result['error']}"
-        }
+    all_methods = []
 
-    methods = reflection_result["methods"]
-    print(f"📋 Métodos descubiertos para {action}: {[m['name'] for m in methods]}")
+    if isinstance(actions, list) and len(actions) > 1:
+        print(f"🔍 Reflexión múltiple: {actions}")
+        for tool in actions:
+            reflection_result = await evolved_self_reflection(tool, user_input)
+            if "error" in reflection_result:
+                return {
+                    "success": False,
+                    "message": None,
+                    "error": f"[ORCH] {reflection_result['error']}"
+                }
+            for m in reflection_result["methods"]:
+                m["tool"] = tool  # Marca de procedencia
+                all_methods.append(m)
+    else:
+        action = actions[0] if isinstance(actions, list) else actions
+        reflection_result = await evolved_self_reflection(action, user_input)
+        if "error" in reflection_result:
+            return {
+                "success": False,
+                "message": None,
+                "error": f"[ORCH] {reflection_result['error']}"
+            }
+        for m in reflection_result["methods"]:
+            m["tool"] = action
+            all_methods.append(m)
+
+    methods = all_methods
+    print(f"📋 Métodos combinados: {[m['name'] for m in methods]}")
+
+
 
     # === 5. Planificación/Selección según tipo de tarea ===
     intelligent_context = IntelligentContext()
@@ -187,8 +156,9 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
         sequence = [selection]
         
     elif task_type in ["complex", "multi_tool"]:
-        # Gemini planifica secuencia
-        sequence = await plan_method_sequence(action, methods, user_input, task_type)
+    # ✅ Adaptar para soportar una o varias herramientas
+        
+        sequence = await plan_method_sequence(actions, methods, user_input, task_type)
         
         if not sequence:
             return {
@@ -196,6 +166,8 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
                 "message": None,
                 "error": "[ORCH] No se pudo generar secuencia de métodos"
             }
+
+
 
     # === 6. Ejecución con contexto inteligente ===
     intelligent_context = IntelligentContext()
@@ -206,7 +178,7 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
         print("⚠️ user_id NO recibido en orchestrator")  # ← Y esto
 
 
-    execution_result = await execute_method_sequence(action, sequence, user_input, intelligent_context)
+    execution_result = await execute_method_sequence(actions, sequence, user_input, intelligent_context)
     
     if not execution_result["success"]:
         return {
@@ -276,7 +248,7 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
                         if method_result.startswith('<'):
                             response_message = f"🤖 **Contenido HTML generado exitosamente**\n\n📄 **Preview:** {method_result[:150]}..."
                         else:
-                            response_message = f"🤖 **Contenido generado exitosamente**\n\n📄 **Preview:** {method_result[:200]}..."
+                            response_message = f"🤖 **Contenido generado exitosamente**\n\n📄 **Preview:** {method_result}..."
                     else:
                         response_message = method_result[:300] + ("..." if len(method_result) > 300 else "")
                 else:
@@ -308,7 +280,7 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
         "success": True,
         "message": response_message,
         "data": {
-            "tool_used": action,
+            "tool_used": actions,
             "methods_executed": successful_methods,
             "total_steps": len(results),
             "context_keys": list(intelligent_context.data.keys())

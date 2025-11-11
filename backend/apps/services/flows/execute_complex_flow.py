@@ -1,140 +1,58 @@
-from typing import List, Dict
+from typing import List, Dict, Union
 import json
 import inspect
 from apps.services.tool_register.tool_registry import TOOL_REGISTRY
 from apps.services.llm.llm_service import call_llm
 from apps.services.context.intelligent_context import IntelligentContext
 from apps.services.utils.utils import filter_valid_args, should_continue_after_error, get_function_signature
+from apps.services.prompt.prompt_base import build_prompt
+from apps.services.prompt.utils_prompt import clean_llm_response
 
 
-async def plan_method_sequence(tool_name: str, methods: List[Dict], user_input: str, task_type: str):
-    """Planifica la secuencia de métodos usando Gemini"""
-    
-    methods_info = json.dumps(methods, indent=2)
-    
-    if task_type == "multi_tool":
-        planning_prompt = f"""
-        HERRAMIENTA: {tool_name}
-        SOLICITUD DEL USUARIO: "{user_input}"
-        
-        MÉTODOS DISPONIBLES:
-        {methods_info}
-        
-        El usuario necesita una secuencia de múltiples métodos de esta herramienta.
-        
-        REGLAS IMPORTANTES:
-        NO USES BACTICKS EN LA RESPUESTA
-        1. SOLO usa métodos que existen en la lista MÉTODOS DISPONIBLES
-        2. NO incluyas métodos como "generate", "create_content" o similares que no están en la lista, No incluyas user_id
-        3. Usa "dynamic" para parámetros que se resolverán automáticamente del contexto
-        4. Para contenido que se debe generar automáticamente (como body de email), usa "dynamic"
-        5. El sistema maneja automáticamente la generación de contenido cuando detecta "dynamic"
-        6. Piensa en el flujo lógico: obtener datos → procesar → actuar
-        7. Puedes insertar procesamiento LLM: {{"action": "llm", "task": "descripción específica"}}
-        8. Puedes iterar métodos: {{"method": "nombre", "iterate": true, "source": "array_context"}}
+async def plan_method_sequence(tools: Union[str, List[str]], methods: List[Dict], user_input: str, task_type: str):
+    """Planifica la secuencia de métodos usando Gemini (compatible con una o varias herramientas)"""
 
-        EJEMPLOS CON NUEVAS CAPACIDADES:
-        - Con LLM: [{{"method": "func"}}{{"method": "func"}}, {{"action": "llm", "task": "tarea principal"}}, {{"method": "send_email"}}]
-        - Con iteración: [{{"method": "func"}}, {{"method": "func", "iterate": true, "source": "func"}}]
-        
-        EJEMPLOS sin LLM ni Iteración:
-          [
-            {{"method": "func", "args": {{"max_results": 1}}}},
-            {{"method": "func", "args": {{"id": "dynamic"}}}},
-            {{"method": "func", "args": {{"to": "usuario@email.com", "subject": "Resumen", "body": "dynamic"}}}}
-          ]
-        
-        INCORRECTO (NO hagas esto):
-        - {{"method": "generate", ...}} ← Este método NO existe
-        - {{"method": "create_summary", ...}} ← Este método NO existe
-        - No uses bacticks en la respuesta
-        - NO TE INVENTES NOMBRES DE ARGUMENTOS
-        
-        
-        Responde SOLO con un JSON válido usando únicamente los métodos disponibles:
-        {{
-          "sequence": [
-            {{"method": "método_que_existe", "args": {{"param": "valor"}}}},
-            {{"method": "otro_método_que_existe", "args": {{"param": "dynamic"}}}}
-          ]
-        }}
-        """
-        
-    else:  # task_type == "complex"
-        planning_prompt = f"""
-        HERRAMIENTA: {tool_name}
-        SOLICITUD DEL USUARIO: "{user_input}"
-    
-        MÉTODOS DISPONIBLES:
-        {methods_info}
-    
-        Esta es una tarea COMPLEJA que requiere un solo método con contenido detallado y elaborado.
-    
-        REGLAS IMPORTANTES:
-        1. SOLO usa métodos que existen en la lista MÉTODOS DISPONIBLES
-        2. Selecciona UN SOLO método apropiado
-        3. GENERA el contenido completo directamente (NO uses "dynamic"), No incluyas user_id
-        4. Si es un email, crea contenido HTML completo si se solicita
-        5. Usa toda la información disponible del contexto para crear contenido relevante
-        6. Para emails: incluye estructura HTML con <h1>, <p>, <ul>, etc. si se pide HTML
-    
-        EJEMPLO CORRECTO para email complejo:
-        {{
-        "sequence": [
-            {{
-            "method": "send_email", 
-            "args": {{
-                "to": "destinatario@email.com", 
-                "subject": "Asunto específico basado en la solicitud", 
-                "body": "<h1>Título Relevante</h1><p>Contenido detallado que responde específicamente a la solicitud del usuario...</p><h2>Sección adicional</h2><p>Más contenido relevante...</p>"
-            }}
-            }}
-        ]
-        }}
-    
-        IMPORTANTE: 
-        - NO uses "dynamic" para contenido que debes generar
-        - Crea contenido específico basado en la solicitud del usuario
-        - Si mencionan HTML, usa tags HTML apropiados
-        - El contenido debe ser completo y listo para usar
-        - No uses bacticks en la respuesta
-    
-        Responde SOLO con un JSON válido:
-        {{
-        "sequence": [
-            {{"method": "método_apropiado", "args": {{"todos_los_parametros": "valores_completos"}}}}
-        ]
-        }}
-        """
-    
+    # 🔹 1️⃣ Normalizar herramientas: aceptar string o lista
+    tool_list = tools if isinstance(tools, list) else [tools]
+
+    # 🔹 2️⃣ Construir el prompt dinámicamente
+    # build_prompt debe poder manejar múltiples herramientas
+    # (si no lo hace, te indico más abajo cómo ajustarlo)
+    planning_prompt = build_prompt(tool_list, methods, user_input, task_type)
+
     plan_text = await call_llm(planning_prompt)
-    print(f"📋 Plan generado por Gemini: {plan_text}")
     
+    # 🧹 Limpieza antes de parsear
+    plan_text = clean_llm_response(plan_text)
+    print(f"📋 Plan generado por Gemini: {plan_text}")
+
     try:
         plan = json.loads(plan_text)
         sequence = plan.get("sequence", [])
-        
-        # Validación adicional: verificar que todos los métodos existen
-        valid_method_names = {method['name'] for method in methods}
-        
-        for step in sequence:
-            # SALTAR validación para pasos LLM e iteraciones
-            if step.get("action") == "llm":
-                continue
-            if step.get("iterate"):
-                continue
-                
-            method_name = step.get("method")
-            if method_name and method_name not in valid_method_names:
-                print(f"❌ ERROR: Método '{method_name}' no existe en {tool_name}")
-                print(f"   Métodos válidos: {list(valid_method_names)}")
-                return []
-        
+
+        # 🔹 3️⃣ Validar métodos solo cuando haya UNA herramienta
+        if len(tool_list) == 1:
+            valid_method_names = {method['name'] for method in methods}
+            for step in sequence:
+                if step.get("action") == "llm" or step.get("iterate"):
+                    continue
+
+                method_name = step.get("method")
+                if method_name and method_name not in valid_method_names:
+                    print(f"❌ ERROR: Método '{method_name}' no existe en {tool_list[0]}")
+                    print(f"   Métodos válidos: {list(valid_method_names)}")
+                    return []
+        else:
+            # 🔹 Si hay varias herramientas, dejamos que el LLM planifique libremente
+            print(f"🔀 Secuencia multi-herramienta detectada: {tool_list}")
+
+        # 🔹 4️⃣ Retornar secuencia unificada
         return sequence
-        
+
     except json.JSONDecodeError:
         print(f"❌ Error parseando plan: {plan_text}")
         return []
+
     
 
 async def execute_iteration_step(step: dict, context: IntelligentContext, tool: dict, user_input: str):
@@ -240,17 +158,28 @@ async def execute_iteration_step(step: dict, context: IntelligentContext, tool: 
 
 ## Ejecutar SECUENCIA 
 
-async def execute_method_sequence(tool_name: str, sequence: List[Dict], user_input: str, context: IntelligentContext):
-    """Ejecuta una secuencia de métodos con contexto inteligente"""
-    
-    tool = TOOL_REGISTRY.get(tool_name)
-    if not tool:
-        return {"success": False, "error": f"Tool '{tool_name}' no encontrada"}
-    
+async def execute_method_sequence(tool_name: Union[str, List[str]], sequence: List[Dict], user_input: str, context: IntelligentContext):
+    """Ejecuta una secuencia de métodos con contexto inteligente (soporta múltiples herramientas)"""
+
+    # 🔹 1️⃣ Normalizar herramientas: aceptar string o lista
+    tool_list = tool_name if isinstance(tool_name, list) else [tool_name]
+
     results = []
-    
+
     for i, step in enumerate(sequence):
-        # Detectar tipo de paso
+
+        # 🔹 2️⃣ Detectar herramienta específica para este paso
+        # Si no se especifica "tool" dentro del step, usar la primera como fallback
+        step_tool_name = step.get("tool", tool_list[0])
+        step_tool = TOOL_REGISTRY.get(step_tool_name)
+
+        if not step_tool:
+            error_msg = f"Tool '{step_tool_name}' no encontrada"
+            results.append({"step": i+1, "success": False, "error": error_msg})
+            print(f"❌ {error_msg}")
+            continue
+
+        # === CASOS DE PASO LLM ===
         if step.get("action") == "llm":
             print(f"🤖 Paso {i+1}: Procesamiento LLM")
             result = await execute_llm_step(step, context, user_input)
@@ -260,36 +189,41 @@ async def execute_method_sequence(tool_name: str, sequence: List[Dict], user_inp
                 "task": step.get("task", "procesamiento"),
                 **result
             })
-            
+
             if not result["success"]:
-                can_continue = await should_continue_after_error(user_input, "llm_processing", result.get("error", ""), i+1, len(sequence))
+                can_continue = await should_continue_after_error(
+                    user_input, "llm_processing", result.get("error", ""), i+1, len(sequence)
+                )
                 if not can_continue:
                     return {"success": False, "error": result.get("error"), "results": results, "stopped_at_step": i+1}
-            
             continue
-            
+
+        # === CASOS DE ITERACIÓN ===
         elif step.get("iterate"):
-            print(f"🔄 Paso {i+1}: Iteración de {step.get('method')}")
-            result = await execute_iteration_step(step, context, tool, user_input)
+            print(f"🔄 Paso {i+1}: Iteración de {step.get('method')} en {step_tool_name}")
+            result = await execute_iteration_step(step, context, step_tool, user_input)
             results.append({
                 "step": i+1,
                 "type": "iteration",
                 "method": step.get("method"),
+                "tool": step_tool_name,
                 **result
             })
-            
+
             if not result["success"]:
-                can_continue = await should_continue_after_error(user_input, step.get("method"), result.get("error", ""), i+1, len(sequence))
+                can_continue = await should_continue_after_error(
+                    user_input, step.get("method"), result.get("error", ""), i+1, len(sequence)
+                )
                 if not can_continue:
                     return {"success": False, "error": result.get("error"), "results": results, "stopped_at_step": i+1}
-            
             continue
 
+        # === PASO DE MÉTODO NORMAL ===
         method_name = step.get("method")
         method_args = step.get("args", {})
-        
-        print(f"🔧 Paso {i+1}: Ejecutando {tool_name}.{method_name}")
-        
+
+        print(f"🔧 Paso {i+1}: Ejecutando {step_tool_name}.{method_name}")
+
         # Resolver argumentos dinámicos
         resolved_args = {}
         for param_name, param_value in method_args.items():
@@ -297,79 +231,72 @@ async def execute_method_sequence(tool_name: str, sequence: List[Dict], user_inp
                 resolved_value = context.resolve_parameter(param_name)
                 resolved_args[param_name] = resolved_value
             else:
-                # Generar contenido si es necesario (ANTES de ejecutar)
                 resolved_value = await context.generate_content_if_needed(param_name, param_value, user_input)
                 resolved_args[param_name] = resolved_value if resolved_value else param_value
-        
+
         print(f"   Args resueltos: {resolved_args}")
-        
-        # ✅ Agregar user_id si está en el contexto
+
+        # ✅ Inyectar user_id si está en el contexto
         if "user_id" in context.data:
             resolved_args["user_id"] = context.data["user_id"]
-            print(f"   ✅ user_id inyectado: {context.data['user_id']}")  # Debug
+            print(f"   ✅ user_id inyectado: {context.data['user_id']}")
 
-        # Ejecutar método
         try:
-            if isinstance(tool, dict):
-                method_meta = tool.get(method_name)
+            if isinstance(step_tool, dict):
+                method_meta = step_tool.get(method_name)
                 if not method_meta:
-                    error_msg = f"Método '{method_name}' no encontrado en {tool_name}"
+                    error_msg = f"Método '{method_name}' no encontrado en {step_tool_name}"
                     results.append({"method": method_name, "success": False, "error": error_msg})
                     print(f"❌ {error_msg}")
                     return {"success": False, "error": error_msg, "results": results}
-                
+
                 method_func = method_meta.get("func")
                 method_signature = get_function_signature(method_func)
-                
-                # Filtrar argumentos válidos según la firma
-                
                 filtered_args = filter_valid_args(method_func, resolved_args)
-                
-                
+
                 if inspect.iscoroutinefunction(method_func):
                     result = await method_func(**filtered_args)
                 else:
                     result = method_func(**filtered_args)
-                
-                # Almacenar resultado en contexto
-                context.store_result(method_name, result, method_signature)
-                
+
+                # 🔹 Guardar resultado contextualizado por herramienta y método
+                context.store_result(f"{step_tool_name}.{method_name}", result, method_signature)
+
                 results.append({
-                    "method": method_name, 
-                    "success": True, 
+                    "tool": step_tool_name,
+                    "method": method_name,
+                    "success": True,
                     "result": str(result)[:200] + "..." if len(str(result)) > 200 else str(result)
                 })
-                print(f"✅ Paso {i+1} completado")
-                
+                print(f"✅ Paso {i+1} completado ({step_tool_name}.{method_name})")
+
             else:
-                # Tool simple
-                if inspect.iscoroutinefunction(tool):
-                    result = await tool(**resolved_args)
+                # Herramienta simple (caso raro)
+                if inspect.iscoroutinefunction(step_tool):
+                    result = await step_tool(**resolved_args)
                 else:
-                    result = tool(**resolved_args)
-                
-                context.store_result(tool_name, result)
-                results.append({"method": tool_name, "success": True, "result": str(result)})
-                print(f"✅ Herramienta simple ejecutada")
-        
+                    result = step_tool(**resolved_args)
+
+                context.store_result(step_tool_name, result)
+                results.append({"method": step_tool_name, "success": True, "result": str(result)})
+                print(f"✅ Herramienta simple ejecutada ({step_tool_name})")
+
         except Exception as e:
-            error_msg = f"Error ejecutando {method_name}: {str(e)}"
+            error_msg = f"Error ejecutando {step_tool_name}.{method_name}: {str(e)}"
             results.append({"method": method_name, "success": False, "error": error_msg})
             print(f"❌ {error_msg}")
-            
-            # Decidir si continuar o parar
+
             can_continue = await should_continue_after_error(user_input, method_name, str(e), i+1, len(sequence))
             if not can_continue:
                 return {"success": False, "error": error_msg, "results": results, "stopped_at_step": i+1}
-    
-    # Post-procesamiento ya no es necesario - la generación se hace en tiempo real
-    
+
     return {
         "success": True,
         "results": results,
         "context_data": context.data,
         "total_steps": len(sequence)
     }
+
 
 
     #IMPORTAR DE intelligente_context.py=>
@@ -470,8 +397,9 @@ async def execute_llm_step(step: dict, context: IntelligentContext, user_input: 
         context.data["last_content"] = llm_result
         
         print(f"🤖 LLM procesó: {task}")
-        print(f"📝 Contenido generado: {llm_result[:150]}...")
-        return {"success": True, "result": llm_result[:200] + "..." if len(llm_result) > 200 else llm_result}
+        print(f"📝 Contenido generado: {len(llm_result)} caracteres")
+        print(f"📝 Preview: {llm_result[:200]}...")
+        return {"success": True, "result": llm_result}  # ✅ Retorna COMPLETO
         
     except Exception as e:
         error_msg = f"Error en procesamiento LLM: {str(e)}"

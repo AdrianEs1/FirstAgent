@@ -1,12 +1,13 @@
 from typing import List, Dict
 import json
 from apps.services.llm.small_llm_service import call_small_llm
+from apps.services.prompt.prompt_base import build_prompt
 
 
 async def select_simple_method(tool_name: str, methods: List[Dict], user_input: str):
     """Selecciona método simple usando Groq con mejor lógica"""
     
-    methods_info = []
+    """methods_info = []
     for method in methods:
         method_info = {
             "name": method["name"],
@@ -15,9 +16,12 @@ async def select_simple_method(tool_name: str, methods: List[Dict], user_input: 
         }
         methods_info.append(method_info)
     
-    methods_json = json.dumps(methods_info, indent=2, ensure_ascii=False)
+    methods_json = json.dumps(methods_info, indent=2, ensure_ascii=False)"""
+
+    planning_prompt = build_prompt(tool_name, methods, user_input, task_type="simple")
+
     
-    selection_prompt = f"""
+    """selection_prompt = f""
     HERRAMIENTA: {tool_name}
     SOLICITUD DEL USUARIO: "{user_input}"
    
@@ -51,10 +55,10 @@ async def select_simple_method(tool_name: str, methods: List[Dict], user_input: 
    
     Responde SOLO con JSON válido, TENIENDO EN CUENTA LOS FORMATOS SOLICITADOS POR EL USUARIO:
     {{"method": "nombre_método", "args": {{"parametro_valido": "valor"}}}}
-    """
+    """ 
     
     try:
-        selection_text = await call_small_llm(selection_prompt)
+        selection_text = await call_small_llm(planning_prompt)
         print(f"🎯 Selección de Groq: {selection_text}")
         
         # Limpiar respuesta si viene con markdown
