@@ -10,6 +10,7 @@ import json
 from datetime import datetime
 
 from apps.database import SessionLocal
+#from apps.core.dependencies import get_db
 from apps.api.dependencies import get_user_from_token
 from apps.models.user import User
 from apps.services.orchestrator.orchestrator_service import orchestrator
@@ -21,13 +22,13 @@ from apps.services.memory.qdrant_service import store_message, search_context
 router = APIRouter()
 
 
-def get_db():
-    """Dependency para obtener sesión de BD"""
+"""def get_db():
+    Dependency para obtener sesión de BD
     db = SessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        db.close()"""
 
 
 class ConnectionManager:
@@ -80,8 +81,7 @@ manager = ConnectionManager()
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: str = Query(..., description="JWT access token"),
-    db: Session = Depends(get_db)
+    token: str = Query(..., description="JWT access token")
 ):
     """
     WebSocket endpoint para chat con streaming de eventos.
@@ -107,11 +107,16 @@ async def websocket_endpoint(
     """
     
     # === 1. Autenticación ===
+    db = SessionLocal()  # ← Crear sesión temporal para autenticación
     try:
         current_user: User = await get_user_from_token(token, db)
     except Exception as e:
+        db.close()  # ← Cerrar sesión si falla
         await websocket.close(code=1008, reason=f"Autenticación fallida: {str(e)}")
+        print(f"❌ Error autenticando WebSocket: {e}")
         return
+    finally:
+        db.close()  # ← Cerrar sesión después de autenticar
     
     # === 2. Conectar ===
     await manager.connect(websocket, str(current_user.id))
@@ -154,97 +159,105 @@ async def websocket_endpoint(
             
             # === 4. Procesar mensaje ===
             try:
-                # 4.1 Obtener o crear conversación
-                conversation = conversation_service.get_or_create_active_conversation(
-                    user_id=current_user.id,
-                    conversation_id=conversation_id,
-                    db=db
-                )
+                # ✅ Crear nueva sesión para ESTE mensaje específico
+                db = SessionLocal()
                 
-                # 4.2 Guardar mensaje del usuario
-                user_message_obj = conversation_service.save_user_message(
-                    conversation_id=conversation.id,
-                    content=user_message,
-                    db=db
-                )
-                
-                # 4.3 Actualizar título si es nuevo
-                if conversation.title == "Nueva conversacion":
-                    title = await conversation_service.update_conversation_title(
-                        conversation_id=conversation.id,
-                        first_message=user_message,
+                try:
+                    # 4.1 Obtener o crear conversación
+                    conversation = conversation_service.get_or_create_active_conversation(
                         user_id=current_user.id,
+                        conversation_id=conversation_id,
                         db=db
                     )
-                    if title:
-                        conversation.title = title
-                
-                # 4.4 Buscar contexto
-                context_list = search_context(user_message)
-                context_text = "\n".join(context_list)
-                
-                # 4.5 Definir callback para eventos del orquestador
-                async def event_callback(event_type: str, event_data: dict):
-                    """Callback que el orquestador usará para emitir eventos"""
-                    await manager.send_event(str(current_user.id), event_type, event_data)
-                
-                # 4.6 Ejecutar orquestador CON callback
-                result = await orchestrator(
-                    user_message,
-                    user_id=str(current_user.id),
-                    context=context_text,
-                    event_callback=event_callback  # ✨ NUEVO
-                )
-                
-                print(f"📊 Resultado orquestador (WS): {result}")
-                
-                # 4.7 Extraer respuesta
-                result_text = result if isinstance(result, str) else result.get("message", str(result))
-                result_metadata = result.get("data", {}) if isinstance(result, dict) else {}
-                
-                # 4.8 Guardar respuesta del agente
-                assistant_message = conversation_service.save_assistant_message(
-                    conversation_id=conversation.id,
-                    content=result_text,
-                    metadata=result_metadata,
-                    db=db
-                )
-                
-                # 4.9 Guardar en Qdrant
-                store_message(
-                    user_message,
-                    metadata={
-                        "role": "user",
-                        "conversation_id": str(conversation.id),
-                        "user_id": str(current_user.id)
-                    }
-                )
-                store_message(
-                    result_text,
-                    metadata={
-                        "role": "assistant",
-                        "conversation_id": str(conversation.id),
-                        "user_id": str(current_user.id)
-                    }
-                )
-                
-                # 4.10 Refrescar conversación
-                db.refresh(conversation)
-                
-                # 4.11 Enviar evento final
-                await manager.send_event(
-                    str(current_user.id),
-                    "completed",
-                    {
-                        "message": result_text,
-                        "data": {
+                    
+                    # 4.2 Guardar mensaje del usuario
+                    user_message_obj = conversation_service.save_user_message(
+                        conversation_id=conversation.id,
+                        content=user_message,
+                        db=db
+                    )
+                    
+                    # 4.3 Actualizar título si es nuevo
+                    if conversation.title == "Nueva conversacion":
+                        title = await conversation_service.update_conversation_title(
+                            conversation_id=conversation.id,
+                            first_message=user_message,
+                            user_id=current_user.id,
+                            db=db
+                        )
+                        if title:
+                            conversation.title = title
+                    
+                    # 4.4 Buscar contexto
+                    context_list = search_context(user_message)
+                    context_text = "\n".join(context_list)
+                    
+                    # 4.5 Definir callback para eventos del orquestador
+                    async def event_callback(event_type: str, event_data: dict):
+                        """Callback que el orquestador usará para emitir eventos"""
+                        await manager.send_event(str(current_user.id), event_type, event_data)
+                    
+                    # 4.6 Ejecutar orquestador CON callback
+                    result = await orchestrator(
+                        user_message,
+                        user_id=str(current_user.id),
+                        context=context_text,
+                        event_callback=event_callback
+                    )
+                    
+                    print(f"📊 Resultado orquestador (WS): {result}")
+                    
+                    # 4.7 Extraer respuesta
+                    result_text = result if isinstance(result, str) else result.get("message", str(result))
+                    result_metadata = result.get("data", {}) if isinstance(result, dict) else {}
+                    
+                    # 4.8 Guardar respuesta del agente
+                    assistant_message = conversation_service.save_assistant_message(
+                        conversation_id=conversation.id,
+                        content=result_text,
+                        metadata=result_metadata,
+                        db=db
+                    )
+                    
+                    # 4.9 Guardar en Qdrant
+                    store_message(
+                        user_message,
+                        metadata={
+                            "role": "user",
                             "conversation_id": str(conversation.id),
-                            "title": conversation.title,
-                            **result_metadata
+                            "user_id": str(current_user.id)
                         }
-                    }
-                )
+                    )
+                    store_message(
+                        result_text,
+                        metadata={
+                            "role": "assistant",
+                            "conversation_id": str(conversation.id),
+                            "user_id": str(current_user.id)
+                        }
+                    )
+                    
+                    # 4.10 Refrescar conversación
+                    db.refresh(conversation)
+                    
+                    # 4.11 Enviar evento final
+                    await manager.send_event(
+                        str(current_user.id),
+                        "completed",
+                        {
+                            "message": result_text,
+                            "data": {
+                                "conversation_id": str(conversation.id),
+                                "title": conversation.title,
+                                **result_metadata
+                            }
+                        }
+                    )
                 
+                finally:
+                    # ✅ CRÍTICO: Cerrar sesión después de procesar el mensaje
+                    db.close()
+                    
             except Exception as e:
                 print(f"❌ Error procesando mensaje: {e}")
                 await manager.send_event(
@@ -256,6 +269,7 @@ async def websocket_endpoint(
                     }
                 )
     
+
     except WebSocketDisconnect:
         print(f"🔌 Cliente desconectado: user_id={current_user.id}")
     except Exception as e:

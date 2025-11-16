@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 function ChatArea({ messages, loading }) {
     const messagesEndRef = useRef(null);
@@ -38,7 +39,9 @@ function ChatArea({ messages, loading }) {
                                     : 'bg-gray-100 text-gray-800'
                             }`}
                         >
-                            <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                            <div className="prose prose-sm max-w-none text-sm">
+                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            </div>
                             <p className={`text-xs mt-2 ${
                                 msg.role === 'user' ? 'text-cyan-100' : 'text-gray-500'
                             }`}>

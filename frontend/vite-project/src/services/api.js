@@ -6,7 +6,7 @@ import axios from "axios";
 
 // Crear instancia de axios con configuración correcta
 const api = axios.create({
-  baseURL: "https://adrianarchitecia-optimusagent.hf.space", // 👈 Pon aquí tu URL de Hugging Face
+  baseURL: "https://adrianarchitecia-optimusagent.hf.space/", // 👈 Pon aquí tu URL de Hugging Face
   headers: {
     'Content-Type': 'application/json',
   },

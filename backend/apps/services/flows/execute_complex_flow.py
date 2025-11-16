@@ -1,4 +1,4 @@
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional, Callable, Awaitable
 import json
 import inspect
 from apps.services.tool_register.tool_registry import TOOL_REGISTRY
@@ -157,8 +157,10 @@ async def execute_iteration_step(step: dict, context: IntelligentContext, tool: 
     }
 
 ## Ejecutar SECUENCIA 
+EventCallback = Optional[Callable[[str, dict], Awaitable[None]]]
 
-async def execute_method_sequence(tool_name: Union[str, List[str]], sequence: List[Dict], user_input: str, context: IntelligentContext):
+
+async def execute_method_sequence(tool_name: Union[str, List[str]], sequence: List[Dict], user_input: str, context: IntelligentContext, event_callback: EventCallback = None):
     """Ejecuta una secuencia de métodos con contexto inteligente (soporta múltiples herramientas)"""
 
     # 🔹 1️⃣ Normalizar herramientas: aceptar string o lista
@@ -179,9 +181,34 @@ async def execute_method_sequence(tool_name: Union[str, List[str]], sequence: Li
             print(f"❌ {error_msg}")
             continue
 
+        # Emitir evento: Ejecutando paso
+        if event_callback:
+            step_name = step.get("method", "unknown")
+            if step.get("action") == "llm":
+                step_name = "llm_processing"
+            elif step.get("iterate"):
+                step_name = f"{step.get('method', 'unknown')}_iteration"
+            
+            await event_callback("executing", {
+                "message": f"Ejecutando paso {i+1}/{len(sequence)}: {step_name}",
+                "step": i+1,
+                "total": len(sequence),
+                "method": step_name,
+                "tool": step_tool_name
+            })
+
+
         # === CASOS DE PASO LLM ===
         if step.get("action") == "llm":
             print(f"🤖 Paso {i+1}: Procesamiento LLM")
+
+            # Emitir evento: Procesando con LLM
+            if event_callback:
+                await event_callback("processing", {
+                    "message": "Procesando contenido con IA...",
+                    "task": step.get("task", "generación de contenido")
+                })
+
             result = await execute_llm_step(step, context, user_input)
             results.append({
                 "step": i+1,

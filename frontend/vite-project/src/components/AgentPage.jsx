@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useWebSocket } from "../hooks/useWebSocket";
+import EventIndicator from "../components/EventIndicator";
 import { useAuth } from "../context/AuthContext";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
@@ -16,6 +18,17 @@ import { Menu, X, Send } from "lucide-react";
 function AgentPage() {
   const { user } = useAuth();
 
+  // Hook de WebSocket
+  const { 
+    isConnected, 
+    currentEvent, 
+    connect, 
+    sendMessage: sendWsMessage,
+    addEventListener 
+  } = useWebSocket();
+  
+  const textareaRef = useRef(null);
+
   // Estados principales
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [connectedApps, setConnectedApps] = useState({});
@@ -31,6 +44,75 @@ function AgentPage() {
     loadConversations();
     checkOAuthStatus();
   }, []);
+
+  // Conectar WebSocket al cargar
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      connect(token).catch(err => {
+        console.error('Error conectando WebSocket:', err);
+      });
+    }
+  }, [connect]);
+
+  // Escuchar evento "completed" del WebSocket
+  useEffect(() => {
+    const cleanup = addEventListener('completed', (data) => {
+      console.log('✅ Mensaje completado:', data);
+      
+      // Mensaje del bot con animación
+      const botMsg = {
+        id: `temp-${Date.now()}`,
+        role: 'assistant',
+        content: '',
+        created_at: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, botMsg]);
+
+      // ✅ DESPUÉS (instantáneo)
+      setMessages(prev =>
+        prev.map(m => m.id === botMsg.id ? { ...m, content: data.message } : m)
+      );
+      setLoading(false);
+          
+      // Actualizar conversación SOLO si es nueva Y no existe
+      if (data.data?.conversation_id && !activeConversationId) {
+        setConversations(prev => {
+          const exists = prev.some(conv => conv.id === data.data.conversation_id);
+          if (exists) {
+            console.log('⚠️ Conversación ya existe, saltando');
+            return prev;
+          }
+          
+          const newConv = {
+            id: data.data.conversation_id,
+            title: data.data.title,
+            status: 'active',
+            last_message_at: new Date().toISOString()
+          };
+          return [newConv, ...prev];
+        });
+        
+        setActiveConversationId(data.data.conversation_id);
+      }
+        
+    });
+
+    // ✅ CLEANUP cuando el componente se desmonta o activeConversationId cambia
+    return cleanup;
+  }, [addEventListener, activeConversationId]);
+
+
+  // Auto-resize textarea
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    }
+  }, [newMessage]);
+
 
   // ✅ Cargar lista de conversaciones sin abrir ninguna automáticamente
   const loadConversations = async () => {
@@ -116,85 +198,36 @@ function AgentPage() {
 
 
   // ✅ Enviar mensaje (crea conversación automáticamente si no existe)
+  // ✅ Enviar mensaje via WebSocket
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
     const userMsg = {
       id: `temp-${Date.now()}`,
-      role: "user",
+      role: 'user',
       content: newMessage,
-      created_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]);
     const messageToSend = newMessage;
-    setNewMessage("");
+    setNewMessage('');
     setLoading(true);
 
     try {
-      // ✅ El backend crea la conversación automáticamente
-      const response = await sendMessageToConversation(
-        activeConversationId,
-        messageToSend, user?.id
-      );
-
-      // Si es la primera conversación, actualizar el ID
+      // Enviar por WebSocket
+      sendWsMessage(messageToSend, activeConversationId);
       
-
-      // ✅ Si es una nueva conversación, usar el título generado y actualizar lista localmente
-      if (response.conversation_id && !activeConversationId) {
-        const newConv = {
-          id: response.conversation_id,
-          title: response.title || messageToSend.slice(0, 50) + "...",
-          status: "active",
-          last_message_at: new Date().toISOString(),
-        };
-        setConversations((prev) => [newConv, ...prev]);
-        setActiveConversationId(response.conversation_id);
-      }
-
-
-      // Mensaje del asistente (con animación)
-      // Mensaje del asistente (con animación)
-      const botMsg = {
-        id: `temp-${Date.now() + 1}`,
-        role: "assistant",
-        content: "",
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, botMsg]);
-
-      // Animar escritura
-      typeWriterEffect(
-        response.message,
-        (partialText) => {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === botMsg.id ? { ...m, content: partialText } : m
-            )
-          );
-        },
-        () => {
-          setLoading(false);
-          // ⚡ Evita recargar toda la lista de conversaciones
-          // Solo actualiza localmente si es necesario
-          if (response.conversation_id && !activeConversationId) {
-            setActiveConversationId(response.conversation_id);
-            //loadConversations();
-          }
-        }
-      );
-
     } catch (error) {
-      console.error("Error enviando mensaje:", error);
+      console.error('Error enviando mensaje:', error);
       const errorMsg = {
-        id: `temp-${Date.now() + 2}`,
-        role: "assistant",
-        content: "Error al procesar tu solicitud. Por favor, intenta nuevamente.",
-        created_at: new Date().toISOString(),
+        id: `temp-${Date.now() + 1}`,
+        role: 'assistant',
+        content: 'Error al procesar tu solicitud. Por favor, intenta nuevamente.',
+        created_at: new Date().toISOString()
       };
-      setMessages((prev) => [...prev, errorMsg]);
+      setMessages(prev => [...prev, errorMsg]);
       setLoading(false);
     }
   };
@@ -238,6 +271,8 @@ function AgentPage() {
       </div>
     );
   }
+
+  
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -292,29 +327,57 @@ function AgentPage() {
             </div>
           )}
           {(activeConversationId || messages.length > 0) && (
-            <ChatArea messages={messages} loading={loading} />
-          )}
+          <>
+            <ChatArea messages={messages} loading={false} />
+            {loading && currentEvent && <EventIndicator event={currentEvent} />}
+            {loading && !currentEvent && (
+              <div className="flex justify-start p-6">
+                <div className="bg-gray-100 rounded-2xl px-4 py-3">
+                  <div className="flex gap-2">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
         </div>
+        
         
         {/* INPUT AREA */}
         <form
           onSubmit={handleSendMessage}
-          className="border-t border-gray-200 p-4 flex items-center gap-3 bg-gray-50"
+          className="border-t border-gray-200 p-4 bg-gray-50"
         >
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Escribe tu mensaje..."
-            className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none"
-          />
-          <button
-            type="submit"
-            disabled={loading || !newMessage.trim()}
-            className="bg-cyan-600 text-white p-2 rounded-lg hover:bg-cyan-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Send size={20} />
-          </button>
+          <div className="max-w-4xl mx-auto flex items-center gap-3">
+            <textarea
+              ref={textareaRef}
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSendMessage(e);
+                }
+              }}
+              placeholder="Escribe tu mensaje..."
+              rows={1}
+              className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none resize-none overflow-y-auto"
+              style={{
+                minHeight: '42px',
+                maxHeight: '200px',
+              }}
+            />
+            <button
+              type="submit"
+              disabled={loading || !newMessage.trim()}
+              className="bg-cyan-600 text-white p-2 rounded-lg hover:bg-cyan-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Send size={20} />
+            </button>
+          </div>
         </form>
       </div>
     </div>

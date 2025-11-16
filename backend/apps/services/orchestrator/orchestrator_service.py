@@ -1,6 +1,6 @@
 import json
 import inspect
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, Callable, Awaitable
 from apps.services.llm.small_llm_service import call_small_llm
 from apps.services.llm.llm_service import call_llm
 from apps.services.tool_register.tool_registry import TOOL_REGISTRY
@@ -53,7 +53,10 @@ async def generate_final_content_if_needed(context: IntelligentContext, user_inp
 
 ## ESTA PARTE SE MANTIEN AQUÍ EN ESTE MÓDULO
 
-async def orchestrator(user_input: str, user_id: str = None, context: str = "") -> dict:
+# Definir tipo de callback
+EventCallback = Optional[Callable[[str, dict], Awaitable[None]]]
+
+async def orchestrator(user_input: str, user_id: str = None, context: str = "", event_callback: EventCallback = None) -> dict:
     """Orquestador genérico y escalable"""
     
     # === 1. Decisión inicial con Groq ===
@@ -66,6 +69,12 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
     decision_text = await call_small_llm(decision_prompt)
     print(f"🤖 Decisión de Groq: {decision_text}")
 
+    # Emitir evento: Analizando
+    if event_callback:
+        await event_callback("analyzing", {
+            "message": "Analizando tu petición..."
+        })
+
     try:
         decision = json.loads(decision_text)
     except json.JSONDecodeError:
@@ -77,6 +86,55 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
 
     actions = decision.get("actions", [])
     task_type = decision.get("type", "simple")
+
+    from apps.services.prompt.agent_identity import (
+        AGENT_IDENTITY, 
+        OAUTH_GUIDE, 
+        TROUBLESHOOTING_GUIDE,
+        QUICK_START_GUIDE
+    )
+
+    # === 2. Manejar ayuda del agente ===
+    if task_type == "agent_help":
+        help_prompt = f"""
+        {AGENT_IDENTITY}
+        
+        {OAUTH_GUIDE}
+        
+        {TROUBLESHOOTING_GUIDE}
+        
+        {QUICK_START_GUIDE}
+        
+        INSTRUCCIONES:
+        El usuario pregunta: "{user_input}"
+        Contexto adicional: {context}
+        
+        Analiza la pregunta y responde de manera apropiada:
+        
+        - Si pregunta sobre **capacidades/funciones**: Explica brevemente qué puedes hacer con ejemplos concretos
+        - Si pregunta sobre **cómo conectar apps**: Da la guía paso a paso de OAuth
+        - Si necesita **ayuda para empezar**: Ofrece la guía rápida y ejemplos simples
+        - Si tiene **problemas técnicos**: Guía con el troubleshooting básico
+        - Si pregunta algo **mixto**: Combina las secciones relevantes
+        
+        FORMATO DE RESPUESTA:
+        - Usa **negritas** para resaltar puntos importantes
+        - Usa emojis para mejor legibilidad (pero no abuses)
+        - Sé conciso pero completo
+        - Estructura en secciones si es necesario
+        - Termina invitando al usuario a probar algo específico
+        
+        Sé amigable, claro y motivador. Tu objetivo es que el usuario se sienta seguro para usar el agente.
+        """
+        
+        response = await call_llm(help_prompt)
+        
+        return {
+            "success": True,
+            "message": response,
+            "data": {"type": "agent_help"},
+            "error": None
+        }
 
     # === 2. Manejar conversación general ===
     if task_type == "conversation":
@@ -104,6 +162,70 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
             "message": None,
             "error": f"[ORCH] Herramientas no disponibles: {missing}"
         }
+    
+
+    # === 4. Detección proactiva: Herramientas requeridas pero no conectadas ===
+    if actions and user_id:
+        disconnected_tools = []
+        
+        for tool_name in actions:
+            if tool_name in ["gmail", "drive"]:  # Solo herramientas OAuth
+                try:
+                    # Obtener la herramienta del registry
+                    tool = TOOL_REGISTRY.get(tool_name)
+                    if tool and "test_connection" in tool:
+                        # Ejecutar test_connection
+                        test_func = tool["test_connection"]["func"]
+                        result = test_func(user_id=user_id)
+                        
+                        # Si falla, la herramienta no está conectada
+                        if not result.get("success", False):
+                            disconnected_tools.append(tool_name)
+                except Exception as e:
+                    # Si hay cualquier error, asumir que no está conectada
+                    print(f"⚠️ Error verificando {tool_name}: {e}")
+                    disconnected_tools.append(tool_name)
+        
+        # Si hay herramientas desconectadas, responder proactivamente
+        if disconnected_tools:
+            tools_list = " y ".join([f"**{t.capitalize()}**" for t in disconnected_tools])
+            tools_simple = ", ".join(disconnected_tools)
+            
+            guide_message = f"""⚠️ **Necesito acceso a** {tools_list}
+
+    Para ejecutar tu petición:
+    {user_input[:60]}{'...' if len(user_input) > 60 else ''}
+
+    Primero necesitas conectar {tools_list}.
+
+
+    📍 Cómo hacerlo:
+
+    1. Ve al menú Apps (esquina superior derecha)
+    2. Busca {tools_list}
+    3. Haz clic en Conectar
+    4. Autoriza los permisos en la ventana de Google
+    5. Vuelve e intenta tu comando de nuevo
+
+
+    💡 Tip: ✅ Puedes conectar todas las apps de una vez para 
+            no tener que hacerlo después.
+
+            ✅ Si existe al menos una app conectada y decides
+            desconectar otra app, puedes volver a conectarla
+            sin necesidad del flujo Oauth de google ya que el
+            token seguirá siendo válido
+
+    """
+            
+            return {
+                "success": False,
+                "message": guide_message,
+                "data": {"missing_tools": disconnected_tools, "type": "oauth_required"},
+                "error": "tools_not_connected"
+            }
+
+
 
     # === 4. Self-reflection evolucionado ===
     all_methods = []
@@ -166,6 +288,22 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
                 "message": None,
                 "error": "[ORCH] No se pudo generar secuencia de métodos"
             }
+        
+        # Emitir evento: Planificación
+        if event_callback:
+            total_steps = len(sequence)
+            method_names = []
+            for step in sequence:
+                if "method" in step:
+                    method_names.append(step["method"])
+                elif step.get("action") == "llm":
+                    method_names.append("llm_processing")
+            
+            await event_callback("planning", {
+                "message": f"Planificando secuencia de {total_steps} pasos...",
+                "steps": method_names,
+                "total": total_steps
+            })
 
 
 
@@ -178,7 +316,7 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
         print("⚠️ user_id NO recibido en orchestrator")  # ← Y esto
 
 
-    execution_result = await execute_method_sequence(actions, sequence, user_input, intelligent_context)
+    execution_result = await execute_method_sequence(actions, sequence, user_input, intelligent_context, event_callback=event_callback)
     
     if not execution_result["success"]:
         return {
@@ -218,9 +356,14 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
         if last_successful_result:
             # Determinar el nombre del método según el tipo de paso
             if "method" in last_successful_result:
-                # Paso de método normal
+                # Paso de método 
                 method_name = last_successful_result["method"]
-                context_key = f"{method_name}_result"
+                # 🔍 Intentar incluir el prefijo de la herramienta si existe
+                tool_name = last_successful_result.get("tool")
+                if tool_name:
+                    context_key = f"{tool_name}.{method_name}_result"
+                else:
+                    context_key = f"{method_name}_result"
             elif last_successful_result.get("type") == "llm":
                 # Paso LLM
                 method_name = "llm_processing"
@@ -256,7 +399,7 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
             else:
                 response_message = f"✅ Ejecutado {method_name} correctamente"
 
-    # Y también corregir la línea de successful_methods:
+    
     successful_methods = []
     for r in results:
         if r.get("success", False):
@@ -275,6 +418,12 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "") 
     if len(successful_methods) > 1:
         sequence_info = f"\n\n📊 **Secuencia completada:** {' → '.join(successful_methods)}"
         response_message += sequence_info
+
+    # Emitir evento: Guardando
+    if event_callback:
+        await event_callback("saving", {
+            "message": "Guardando resultados..."
+        })
 
     return {
         "success": True,

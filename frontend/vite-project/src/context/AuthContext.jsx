@@ -40,7 +40,8 @@ function AuthProvider({ children }) {
     setUser(userData);
     setIsAuthenticated(true);
   };
-  //MODIFICAR URL DEL FETCH EN PRODUCCION o LOCAL: "https://adrianarchitecia-optimusagent.hf.space"
+  //MODIFICAR URL DEL FETCH EN PRODUCCION o LOCAL: "https://adrianarchitecia-optimusagent.hf.space" 
+  // http://localhost:5000
 
   const logout = async () => {
     try {

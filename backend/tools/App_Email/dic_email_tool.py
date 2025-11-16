@@ -152,11 +152,33 @@ def send_email(user_id: str, to: str, subject: str, body: str, **kwargs) -> Dict
         }
 
 
-def list_emails(user_id: str, query: str = "inbox", max_results: int = 5, **kwargs) -> Dict[str, Any]:
-    """Lista emails del usuario"""
+def list_emails(user_id: str, label: str = "INBOX", max_results: int = 5, query: str = None, **kwargs) -> Dict[str, Any]:
+    """
+    Lista emails del usuario
+    
+    Args:
+        user_id: ID del usuario
+        label: Etiqueta de Gmail (INBOX, SENT, DRAFT, SPAM, TRASH)
+        max_results: Número máximo de emails a listar
+        query: Búsqueda adicional opcional (ej: "from:juan subject:proyecto")
+    """
     try:
         service = gmail.get_service(user_id)
-        results = service.users().messages().list(userId="me", q=query, maxResults=max_results).execute()
+        
+        # Construir parámetros de búsqueda
+        search_params = {
+            "userId": "me",
+            "maxResults": max_results
+        }
+        
+        # Si hay query específica, usarla (búsqueda avanzada)
+        if query:
+            search_params["q"] = query
+        else:
+            # Si no hay query, usar labelIds para filtrar por bandeja
+            search_params["labelIds"] = [label]
+        
+        results = service.users().messages().list(**search_params).execute()
         messages = results.get("messages", [])
         
         if not messages:
@@ -265,6 +287,152 @@ def read_email(user_id: str, message_id: str, **kwargs) -> Dict[str, Any]:
             "message": f"❌ **Error leyendo email**\n\n🆔 **ID:** `{message_id}`\n🚫 **Error:** {str(e)}"
         }
 
+def search_emails(
+    user_id: str, 
+    from_email: str = None, 
+    to_email: str = None,
+    subject: str = None, 
+    content: str = None,
+    date_after: str = None,
+    date_before: str = None,
+    has_attachment: bool = None,
+    max_results: int = 5,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Busca emails específicos usando criterios de búsqueda de Gmail
+    
+    Args:
+        user_id: ID del usuario
+        from_email: Buscar por remitente (ej: "juan@example.com" o solo "juan")
+        to_email: Buscar por destinatario
+        subject: Buscar por palabras en el asunto
+        content: Buscar por palabras en el contenido
+        date_after: Buscar después de fecha (formato: YYYY/MM/DD)
+        date_before: Buscar antes de fecha (formato: YYYY/MM/DD)
+        has_attachment: True para emails con adjuntos
+        max_results: Número máximo de resultados
+    
+    Examples:
+        search_emails(user_id, from_email="juan", subject="proyecto")
+        → Busca correos de Juan con "proyecto" en el asunto
+        
+        search_emails(user_id, date_after="2024/01/01", has_attachment=True)
+        → Busca correos con adjuntos desde enero 2024
+    """
+    try:
+        service = gmail.get_service(user_id)
+        
+        # Construir query de búsqueda de Gmail
+        query_parts = []
+        
+        if from_email:
+            query_parts.append(f"from:{from_email}")
+        
+        if to_email:
+            query_parts.append(f"to:{to_email}")
+        
+        if subject:
+            query_parts.append(f"subject:{subject}")
+        
+        if content:
+            query_parts.append(f"{content}")
+        
+        if date_after:
+            query_parts.append(f"after:{date_after}")
+        
+        if date_before:
+            query_parts.append(f"before:{date_before}")
+        
+        if has_attachment:
+            query_parts.append("has:attachment")
+        
+        # Combinar todos los criterios
+        query = " ".join(query_parts)
+        
+        if not query:
+            return {
+                "success": False,
+                "error": "No search criteria provided",
+                "message": "❌ **Error en búsqueda**\n\nDebes especificar al menos un criterio de búsqueda."
+            }
+        
+        # Ejecutar búsqueda
+        results = service.users().messages().list(
+            userId="me",
+            q=query,
+            maxResults=max_results
+        ).execute()
+        
+        messages = results.get("messages", [])
+        
+        if not messages:
+            return {
+                "success": True,
+                "messages": [],
+                "query": query,
+                "message": f"📧 **No se encontraron emails**\n\n🔍 **Búsqueda:** `{query}`\n\nNo hay emails que coincidan con estos criterios."
+            }
+        
+        # Obtener detalles de cada mensaje
+        detailed_messages = []
+        user_message = f"📧 **Encontrados {len(messages)} emails:**\n🔍 **Búsqueda:** `{query}`\n\n"
+        
+        for i, msg in enumerate(messages, 1):
+            try:
+                msg_details = service.users().messages().get(
+                    userId="me", 
+                    id=msg['id'], 
+                    format="metadata",
+                    metadataHeaders=['Subject', 'From', 'To', 'Date']
+                ).execute()
+                
+                headers = msg_details.get('payload', {}).get('headers', [])
+                subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'Sin asunto')
+                from_email = next((h['value'] for h in headers if h['name'] == 'From'), 'Desconocido')
+                to_email = next((h['value'] for h in headers if h['name'] == 'To'), 'Desconocido')
+                date = next((h['value'] for h in headers if h['name'] == 'Date'), 'Fecha desconocida')
+                
+                # Limpiar nombres de emails
+                from_clean = from_email.split('<')[0].strip().strip('"') if '<' in from_email else from_email
+                to_clean = to_email.split('<')[0].strip().strip('"') if '<' in to_email else to_email
+                
+                snippet = msg_details.get('snippet', '')
+                
+                user_message += f"**{i}. {subject}**\n"
+                user_message += f"   📤 **De:** {from_clean}\n"
+                user_message += f"   📥 **Para:** {to_clean}\n"
+                user_message += f"   📅 **Fecha:** {date[:25]}...\n"
+                user_message += f"   💬 **Preview:** {snippet[:80]}...\n"
+                user_message += f"   🆔 **ID:** `{msg['id']}`\n\n"
+                
+                detailed_messages.append({
+                    "id": msg['id'],
+                    "subject": subject,
+                    "from": from_clean,
+                    "to": to_clean,
+                    "date": date,
+                    "snippet": snippet
+                })
+                
+            except Exception as e:
+                user_message += f"**{i}. Error obteniendo email**\n   🚫 **Error:** {str(e)}\n\n"
+        
+        return {
+            "success": True,
+            "messages": detailed_messages,
+            "query": query,
+            "raw_messages": messages,
+            "message": user_message
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"❌ **Error en búsqueda de emails**\n\n🚫 **Error:** {str(e)}"
+        }
+
 
 def test_connection(user_id: str, **kwargs) -> Dict[str, Any]:
     connect_service = gmail.test_connection(user_id)
@@ -346,5 +514,6 @@ GMAIL_TOOL_METHODS = {
     "send_email": {"func": send_email, "description": "Enviar email con Gmail API"},
     "list_emails": {"func": list_emails, "description": "Listar emails de Gmail"},
     "read_email": {"func": read_email, "description": "Leer contenido de un email"},
+    "search_emails": {"func": search_emails, "description": "Buscar email por criterio especifico"},
     "test_connection": {"func": test_connection, "description": "Probar conexión con Gmail API"},
 }

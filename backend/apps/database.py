@@ -12,7 +12,7 @@ engine = create_engine(
     pool_size=5,              # Supabase free tier: max 60 conexiones totales
     max_overflow=10,
     pool_pre_ping=True,       # Verifica conexión antes de usar
-    pool_recycle=300,         # Recicla cada 5 minutos (Supabase cierra inactivas)
+    pool_recycle=3600,         # Recicla cada 5 minutos (Supabase cierra inactivas)
     echo=False,
     connect_args={
         "sslmode": "require",  # SSL obligatorio en Supabase

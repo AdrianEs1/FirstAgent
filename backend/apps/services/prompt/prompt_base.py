@@ -242,6 +242,7 @@ def get_decision_prompt(user_input: str, context: str, available_tools: list) ->
       🟢 simple → One direct action using a single method from one tool.
       🟡 complex → One reasoning or creative task that generates new content (LLM).
       🔵 multi_tool → Sequential actions involving DIFFERENT tools or multiple stages of reasoning.
+      🟣 agent_help → User asking about agent capabilities, how to use it, or needs guidance.
       ⚪ conversation → General chat not requiring tools.
 
       === DECISION LOGIC (STRICT & AGNOSTIC) ===
@@ -297,7 +298,7 @@ def get_decision_prompt(user_input: str, context: str, available_tools: list) ->
       }}
 
       === REASONING EXAMPLES (TOOL-AGNOSTIC) ===
-      
+
       Example 1: "summarize the report.pdf file"
       Analysis:
       - PRIMARY action: summarize (requires LLM)
@@ -305,7 +306,7 @@ def get_decision_prompt(user_input: str, context: str, available_tools: list) ->
       - Tool needed: whichever tool handles files (e.g., "drive")
       - NO other tools mentioned or implied
       Result: {{"actions": ["drive"], "type": "multi_tool"}}
-      
+
       Example 2: "list my recent messages"
       Analysis:
       - PRIMARY action: list
@@ -313,7 +314,7 @@ def get_decision_prompt(user_input: str, context: str, available_tools: list) ->
       - Tool needed: whichever tool handles messages (e.g., "gmail")
       - NO other tools mentioned or implied
       Result: {{"actions": ["gmail"], "type": "simple"}}
-      
+
       Example 3: "find the budget file and send it to john@example.com"
       Analysis:
       - PRIMARY action: find (file) + send (email)
@@ -321,7 +322,7 @@ def get_decision_prompt(user_input: str, context: str, available_tools: list) ->
       - Tools needed: file handler (e.g., "drive") + email handler (e.g., "gmail")
       - BOTH tools are explicitly required
       Result: {{"actions": ["drive", "gmail"], "type": "multi_tool"}}
-      
+
       Example 4: "read the document named 'proposal'"
       Analysis:
       - PRIMARY action: read
@@ -329,12 +330,63 @@ def get_decision_prompt(user_input: str, context: str, available_tools: list) ->
       - Tool needed: whichever tool handles documents (e.g., "drive")
       - NO email, NO sending, NO other tools implied
       Result: {{"actions": ["drive"], "type": "simple"}}
-      
+
       Example 5: "hello, how are you?"
       Analysis:
       - No specific action or resource mentioned
       - General conversation
       Result: {{"actions": [], "type": "conversation"}}
+
+      === AGENT_HELP EXAMPLES (CRITICAL) ===
+
+      📚 **Questions about agent capabilities:**
+      "¿Qué puedes hacer?" → {{"actions": [], "type": "agent_help"}}
+      "Cuáles son tus funciones" → {{"actions": [], "type": "agent_help"}}
+      "Para qué sirves" → {{"actions": [], "type": "agent_help"}}
+      "Qué habilidades tienes" → {{"actions": [], "type": "agent_help"}}
+
+      🔗 **Questions about connecting/OAuth:**
+      "Cómo conecto Gmail" → {{"actions": [], "type": "agent_help"}}
+      "Cómo conectar mis aplicaciones" → {{"actions": [], "type": "agent_help"}}
+      "Cómo conectar Drive" → {{"actions": [], "type": "agent_help"}}
+      "No sé cómo conectar mi cuenta" → {{"actions": [], "type": "agent_help"}}
+      "Qué permisos necesitas" → {{"actions": [], "type": "agent_help"}}
+
+      🆘 **Help/confusion:**
+      "Ayuda, estoy perdido" → {{"actions": [], "type": "agent_help"}}
+      "No sé cómo empezar" → {{"actions": [], "type": "agent_help"}}
+      "No entiendo cómo usarte" → {{"actions": [], "type": "agent_help"}}
+      "Tengo problemas" → {{"actions": [], "type": "agent_help"}}
+
+      === CRITICAL DISTINCTIONS ===
+
+      ⚠️ **IMPORTANT: Differentiate questions ABOUT the agent vs actions WITH tools**
+
+      ❌ WRONG:
+      "Cómo conectar Gmail" → {{"actions": ["gmail"], "type": "simple"}}
+      Reason: User does NOT want to USE Gmail, wants to know HOW to connect it
+
+      ✅ CORRECT:
+      "Cómo conectar Gmail" → {{"actions": [], "type": "agent_help"}}
+      Reason: Question about the agent's connection process
+
+      ❌ WRONG:
+      "Qué puedes hacer con Drive" → {{"actions": ["drive"], "type": "simple"}}
+      Reason: Question about capabilities, not an action
+
+      ✅ CORRECT:
+      "Qué puedes hacer con Drive" → {{"actions": [], "type": "agent_help"}}
+      Reason: Question about agent functionality
+
+      🔑 **KEY RULE:**
+      If the question includes phrases like:
+      - "how to connect", "how to use", "what is it for"
+      - "what can you do", "what are your functions"
+      - "help", "I don't know", "I don't understand"
+      - "cómo conectar", "cómo usar", "para qué sirve"
+      - "qué puedes hacer", "ayuda", "no sé"
+
+      → It's **agent_help**, NOT a tool action
 
       === CRITICAL REMINDERS ===
       ⚠️ BE STRICT: Only include tools whose functionality is DIRECTLY required.
