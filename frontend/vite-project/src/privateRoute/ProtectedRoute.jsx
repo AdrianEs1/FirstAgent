@@ -15,7 +15,7 @@ function ProtectedRoute({ children }) {
 
     // Si no está autenticado, redirigir a home
     if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to="/" replace />;
     }
 
     // Si está autenticado, mostrar el componente
