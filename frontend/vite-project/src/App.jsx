@@ -22,18 +22,20 @@ function App() {
 
   return (
     <Routes>
-      {/* Rutas públicas */}
-      <Route path="/home" element={<Home />} />
+      {/* Landing */}
+      <Route path="/" element={<Home />} />
+
+      {/* Auth */}
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/agentPage" /> : <LoginCard />}
+        element={!isAuthenticated ? <LoginCard /> : <Navigate to="/agentPage" />}
       />
       <Route
         path="/register"
-        element={isAuthenticated ? <Navigate to="/agentPage" /> : <RegisterCard />}
+        element={!isAuthenticated ? <RegisterCard /> : <Navigate to="/agentPage" />}
       />
 
-      {/* Rutas protegidas */}
+      {/* Privada */}
       <Route
         path="/agentPage"
         element={
@@ -41,12 +43,6 @@ function App() {
             <AgentPage />
           </ProtectedRoute>
         }
-      />
-
-      {/* Ruta por defecto */}
-      <Route
-        path="/"
-        element={<Navigate to={isAuthenticated ? "/agentPage" : "/login"} />}
       />
 
       {/* 404 */}

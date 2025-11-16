@@ -13,9 +13,9 @@ function ProtectedRoute({ children }) {
         );
     }
 
-    // Si no está autenticado, redirigir a login
+    // Si no está autenticado, redirigir a home
     if (!isAuthenticated) {
-        return <Navigate to="/home" replace />;
+        return <Navigate to="/login" replace />;
     }
 
     // Si está autenticado, mostrar el componente
