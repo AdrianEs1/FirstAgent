@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { fetchCurrentUser } from "../services/agentServices";
+VITE_API_URL= import.meta.env.VITE_API_URL
 
 const AuthContext = createContext(null);
 
@@ -40,14 +41,14 @@ function AuthProvider({ children }) {
     setUser(userData);
     setIsAuthenticated(true);
   };
-  //MODIFICAR URL DEL FETCH EN PRODUCCION o LOCAL: "https://adrianarchitecia-optimusagent.hf.space" 
+  //MODIFICAR URL DEL FETCH EN PRODUCCION " 
   // http://localhost:5000
 
   const logout = async () => {
     try {
       const token = localStorage.getItem("token");
       if (token) {
-        await fetch("https://adrianarchitecia-optimusagent.hf.space/api/auth/logout", {
+        await fetch(`${VITE_API_URL}api/auth/logout`, {
           method: "POST",
           credentials: "include",
           headers: {

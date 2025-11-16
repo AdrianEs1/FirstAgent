@@ -4,9 +4,10 @@ import axios from "axios";
 //http://localhost:5000/ En LOCAL 
 //https://adrianarchitecia-optimusagent.hf.space En Producción
 
+VITE_API_URL= import.meta.env.VITE_API_URL
 // Crear instancia de axios con configuración correcta
 const api = axios.create({
-  baseURL: "https://adrianarchitecia-optimusagent.hf.space/", // 👈 Pon aquí tu URL de Hugging Face
+  baseURL: VITE_API_URL, // 👈 Pon aquí tu URL de Hugging Face
   headers: {
     'Content-Type': 'application/json',
   },
