@@ -21,143 +21,183 @@ from tools.google_service_base import GoogleServiceBase
 
 class DriveService(GoogleServiceBase):
     def __init__(self):
-        super().__init__("drive", api_version="v3")
-        
+        super().__init__(service_name="drive", api_version="v3")
+    
     def _ping_service(self, service):
-        about_info = service.about().get(fields="user, storageQuota").execute()
-        print("ℹ️ Ping Drive ejecutado correctamente. Usuario:", about_info.get("user", {}))
+        """Verifica conexión con Drive obteniendo info del usuario."""
+        about = service.about().get(fields="user").execute()
+        user_info = about.get("user", {})
+        
+        print(f"ℹ️ Ping Drive ejecutado correctamente. Usuario: {user_info}")
+        
+        return {
+            "displayName": user_info.get("displayName"),
+            "emailAddress": user_info.get("emailAddress"),
+            "permissionId": user_info.get("permissionId"),
+            "photoLink": user_info.get("photoLink")
+        }
 
 
 drive = DriveService()
 
-# ---------------------------------------------
-# 🔐 Obtener servicio autenticado
-# ---------------------------------------------
-"""def get_drive_service(user_id: str):
-    db = SessionLocal()
-    try:
-        oauth_conn = db.query(OAuthConnection).filter_by(
-            user_id=user_id,
-            service='drive',
-            is_active=True
-        ).first()
-
-        if not oauth_conn:
-            raise ValueError("Drive no conectado. Conecta tu cuenta de Google Drive primero.")
-
-        access_token = oauth_conn.get_access_token()
-        refresh_token = oauth_conn.get_refresh_token()
-
-        creds = Credentials(
-            token=access_token,
-            refresh_token=refresh_token,
-            token_uri="https://oauth2.googleapis.com/token",
-            client_id=oauth_conn.meta_data.get('client_id'),
-            client_secret=oauth_conn.meta_data.get('client_secret'),
-            scopes=oauth_conn.scopes
-        )
-
-        if oauth_conn.token_expires_at < datetime.utcnow():
-            creds.refresh(Request())
-            oauth_conn.set_tokens(creds.token, creds.refresh_token)
-            oauth_conn.token_expires_at = creds.expiry
-            db.commit()
-
-        oauth_conn.last_used_at = datetime.utcnow()
-        db.commit()
-
-        return build("drive", "v3", credentials=creds)
-
-    except RefreshError:
-        oauth_conn.is_active = False
-        db.commit()
-        raise ValueError("Token de Google Drive expirado o revocado.")
-    finally:
-        db.close()"""
-
-
-
-# ---------------------------------------------
-# 📂 Listar archivos
-# ---------------------------------------------
-"""def list_files(user_id: str, query: Optional[str] = None, page_size: int = 10, **kwargs) -> Dict[str, Any]:
+def list_files(user_id: str, query: Optional[str] = None, max_results: int = 10, auto_select: bool = True, **kwargs):
+    """Lista archivos con normalización de búsqueda"""
     try:
         service = drive.get_service(user_id)
-        results = service.files().list(
-            q=query,
-            pageSize=page_size,
-            fields="files(id, name, mimeType, modifiedTime, size)"
-        ).execute()
-
-        files = results.get("files", [])
-        if not files:
-            return {"success": True, "files": [], "message": "📂 No se encontraron archivos en tu Drive."}
-
-        msg = "📄 **Archivos en tu Drive:**\n\n"
-        for i, f in enumerate(files, 1):
-            size_kb = int(f.get('size', 0)) / 1024 if f.get('size') else 0
-            msg += f"{i}. **{f['name']}** ({f['mimeType']}) — {size_kb:.1f} KB\n"
-
-        return {"success": True, "files": files, "message": msg}
-
-    except Exception as e:
-        return {"success": False, "error": str(e), "message": f"❌ Error listando archivos: {str(e)}"}"""
-
-def list_files(user_id: str, query: Optional[str] = None, max_results: int = 10, **kwargs):
-    """Lista archivos en Google Drive del usuario"""
-    try:
-        service = drive.get_service(user_id)
-
-        # Si la query no contiene operadores Drive, la convertimos automáticamente
-        if query and not any(op in query for op in ["name =", "name contains", "mimeType", "in owners"]):
-            query = f"name contains '{query}'"
-
-        results = service.files().list(
-            q=query,
-            pageSize=max_results,
-            fields="files(id, name, mimeType, modifiedTime, size)"
-        ).execute()
-
-        files = results.get("files", [])
-        if not files:
+        
+        all_files = []
+        seen_ids = set()
+        search_strategies = []
+        
+        if query:
+            if not any(op in query for op in ["name =", "name contains", "mimeType", "in owners"]):
+                
+                # 🔧 NORMALIZACIÓN: Crear variantes de la query
+                query_variants = [
+                    query,                           # Original: "tendencias de empleo"
+                    query.replace(" ", "_"),         # Con guiones bajos: "tendencias_de_empleo"
+                    query.replace(" ", "-"),         # Con guiones: "tendencias-de-empleo"
+                    query.replace(" ", ""),          # Sin espacios: "tendenciasdeempleo"
+                ]
+                
+                # Agregar todas las variantes como estrategias de búsqueda
+                for variant in query_variants:
+                    search_strategies.append({
+                        "name": f"variante_{variant[:20]}",
+                        "query": f"name contains '{variant}' and trashed = false"
+                    })
+                
+                # También buscar por palabras individuales (fallback)
+                words = [w for w in query.split() if len(w) > 2]
+                if len(words) > 1:
+                    # Probar palabras con diferentes separadores
+                    for word in words:
+                        search_strategies.append({
+                            "name": f"palabra_{word}",
+                            "query": f"name contains '{word}' and trashed = false"
+                        })
+            else:
+                # Query personalizada con operadores Drive
+                search_strategies.append({
+                    "name": "custom",
+                    "query": f"({query}) and trashed = false"
+                })
+        else:
+            # Sin query: archivos recientes
+            search_strategies.append({
+                "name": "recientes",
+                "query": "trashed = false"
+            })
+        
+        # Ejecutar estrategias hasta encontrar resultados suficientes
+        for strategy in search_strategies:
+            try:
+                results = service.files().list(
+                    q=strategy["query"],
+                    pageSize=max_results,
+                    fields="files(id, name, mimeType, modifiedTime, size, webViewLink, owners)",
+                    orderBy="modifiedTime desc"
+                ).execute()
+                
+                for file in results.get("files", []):
+                    if file['id'] not in seen_ids:
+                        all_files.append(file)
+                        seen_ids.add(file['id'])
+                
+                # Si encontramos al menos 1 archivo, continuamos buscando
+                # pero si ya tenemos suficientes, paramos
+                if len(all_files) >= max_results:
+                    print(f"✅ Suficientes resultados con '{strategy['name']}'")
+                    break
+                    
+            except Exception as e:
+                print(f"⚠️ Estrategia '{strategy['name']}' falló: {e}")
+                continue
+        
+        # Si no encontramos nada, retornar mensaje claro
+        if not all_files:
             return {
                 "success": True,
                 "files": [],
-                "message": "📂 **No se encontraron archivos**\n\nNo hay archivos que coincidan con tu búsqueda."
+                "auto_selected": False,
+                "needs_user_choice": False,
+                "message": f"📂 **No se encontraron archivos**\n\nNo hay archivos que coincidan con: `{query}`\n\n💡 Intenta con términos más generales o verifica el nombre exacto."
             }
-
+        
+        # Formatear archivos
         detailed_files = []
-        user_message = f"📄 **Se encontraron {len(files)} archivos:**\n\n"
-
-        for i, f in enumerate(files, 1):
-            user_message += f"**{i}. {f['name']}**\n"
-            user_message += f"   📁 **Tipo:** {f.get('mimeType', 'Desconocido')}\n"
-            user_message += f"   🆔 **ID:** `{f['id']}`\n"
-            user_message += f"   📅 **Modificado:** {f.get('modifiedTime', 'N/A')[:25]}...\n\n"
-
+        for f in all_files[:max_results]:
             detailed_files.append({
                 "id": f["id"],
                 "name": f["name"],
                 "mimeType": f.get("mimeType"),
                 "modifiedTime": f.get("modifiedTime"),
-                "size": f.get("size")
+                "size": f.get("size"),
+                "webViewLink": f.get("webViewLink"),
+                "owners": f.get("owners", [])
             })
-
-        return {
-            "success": True,
-            "files": detailed_files,  # 💡 Igual que "messages" en Gmail
-            "raw_files": files,
-            "message": user_message
-        }
-
+        
+        # CASO 1: Solo 1 archivo → Selección automática
+        if len(detailed_files) == 1 and auto_select:
+            file = detailed_files[0]
+            return {
+                "success": True,
+                "files": detailed_files,
+                "auto_selected": True,
+                "selected_file": file,
+                "needs_user_choice": False,
+                "message": f"✅ **Archivo encontrado automáticamente**\n\n📄 **{file['name']}**\n🆔 ID: `{file['id']}`\n📅 Modificado: {file.get('modifiedTime', 'N/A')[:10]}"
+            }
+        
+        # CASO 2: Múltiples archivos (2-5) → Pedir confirmación
+        elif 2 <= len(detailed_files) <= 5:
+            user_message = f"🤔 **Encontré {len(detailed_files)} archivos. ¿Cuál prefieres?**\n\n"
+            
+            for i, f in enumerate(detailed_files, 1):
+                user_message += f"**{i}. {f['name']}**\n"
+                user_message += f"   📁 Tipo: {f.get('mimeType', 'Desconocido')}\n"
+                user_message += f"   🆔 ID: `{f['id']}`\n"
+                user_message += f"   📅 Modificado: {f.get('modifiedTime', 'N/A')[:10]}\n\n"
+            
+            user_message += "💬 **Responde con el número del archivo que quieres usar.**"
+            
+            return {
+                "success": True,
+                "files": detailed_files,
+                "auto_selected": False,
+                "needs_user_choice": True,
+                "message": user_message
+            }
+        
+        # CASO 3: Muchos archivos (>5) → Mostrar top 10
+        else:
+            user_message = f"📋 **Encontré {len(detailed_files)} archivos. Mostrando los más relevantes:**\n\n"
+            
+            for i, f in enumerate(detailed_files[:10], 1):
+                user_message += f"**{i}. {f['name']}**\n"
+                user_message += f"   📅 {f.get('modifiedTime', 'N/A')[:10]}\n"
+                user_message += f"   🆔 `{f['id']}`\n\n"
+            
+            user_message += "💬 **Opciones:**\n"
+            user_message += "• Responde con el **número** del archivo\n"
+            user_message += "• O dame más detalles para refinar la búsqueda"
+            
+            return {
+                "success": True,
+                "files": detailed_files[:10],
+                "auto_selected": False,
+                "needs_user_choice": True,
+                "message": user_message
+            }
+        
     except Exception as e:
         return {
             "success": False,
             "error": str(e),
-            "message": f"❌ **Error listando archivos**\n\n🚫 **Error:** {str(e)}"
+            "auto_selected": False,
+            "needs_user_choice": False,
+            "message": f"❌ **Error listando archivos**\n\n🚫 {str(e)}"
         }
-
-
 
 # ---------------------------------------------
 # 📖 Leer contenido de un archivo

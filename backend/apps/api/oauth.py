@@ -63,39 +63,39 @@ async def connect_service(
     }
 
 
-@router.get("/{service}/callback")
+@router.get("/callback")
 async def oauth_callback(
-    service: str,
     code: str = Query(...),
     state: str = Query(...),
     db: Session = Depends(get_db)
 ):
     """
-    Callback genérico de Google OAuth
-    Google redirige aquí después de la autorización.
+    Callback único para todas las integraciones Google OAuth.
+    - No se extrae `service` aquí, el `handle_callback` es la única fuente de verdad.
+    - El `state` puede tener formato: user_id:service:nonce
     """
 
-    # Validar servicio
-    if service not in oauth_service.SUPPORTED_SERVICES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Servicio '{service}' no soportado"
-        )
+    # 1) Extraer user_id de forma segura
+    parts = state.split(":", 2)
+    if len(parts) < 2:
+        raise HTTPException(status_code=400, detail="State inválido")
 
-    # Extraer user_id del state (formato: "{user_id}:{service}")
-    try:
-        user_id = state.split(':')[0]
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="State inválido"
-        )
+    user_id = parts[0]
 
     try:
-        # Procesar callback
-        oauth_conn = oauth_service.handle_callback(code, state, user_id, service, db)
+        # 2) handle_callback ahora extrae y valida service internamente
+        oauth_conn = oauth_service.handle_callback(
+            code=code,
+            state=state,
+            user_id=user_id,
+            service="",  # <-- ya no usamos este argumento, se ignora dentro del método
+            db=db
+        )
 
-        # HTML dinámico según servicio
+        service = oauth_conn.service
+        email = oauth_conn.meta_data.get("email", "")
+
+        # HTML de cierre
         html_content = f"""
         <!DOCTYPE html>
         <html>
@@ -108,11 +108,9 @@ async def oauth_callback(
                     window.opener.postMessage({{
                         status: 'success',
                         app: '{service}',
-                        email: '{oauth_conn.meta_data.get('email', '')}'
-                    }}, 'http://localhost:5173/');
+                        email: '{email}'
+                    }}, 'https://optimusagent.vercel.app');
                     setTimeout(() => window.close(), 500);
-                }} else {{
-                    document.body.innerHTML = '<h2>✅ Autenticación completada</h2><p>Puedes cerrar esta ventana.</p>';
                 }}
             </script>
         </body>
@@ -121,29 +119,7 @@ async def oauth_callback(
         return HTMLResponse(content=html_content)
 
     except Exception as e:
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head><title>Error de autenticación</title></head>
-        <body>
-            <h2>❌ Error de autenticación en {service.capitalize()}</h2>
-            <p>{str(e)}</p>
-            <script>
-                if (window.opener) {{
-                    window.opener.postMessage({{
-                        status: 'error',
-                        app: '{service}',
-                        message: '{str(e)}'
-                    }}, 'http://localhost:5173/');
-                    setTimeout(() => window.close(), 2000);
-                }} else {{
-                    document.body.innerHTML += '<p>Puedes cerrar esta ventana.</p>';
-                }}
-            </script>
-        </body>
-        </html>
-        """
-        return HTMLResponse(content=html_content)
+        return HTMLResponse(content=f"Error procesando OAuth: {str(e)}")
 
 
 @router.get("/connections", response_model=List[OAuthConnectionResponse])

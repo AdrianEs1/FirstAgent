@@ -67,21 +67,6 @@ class ConversationService:
         return message
     
 
-    """async def update_conversation_title(
-            
-        self,
-        conversation_id: uuid.UUID,
-        first_message: str,
-        user_id: uuid.UUID,
-        db: Session
-        ):
-
-        conversation = db.query(Conversation).filter_by(id=conversation_id).first()
-        if conversation and conversation.title == "Nueva conversacion":
-            title = await self.generate_smart_title(first_message, user_id)
-            conversation.title = title
-            print(f"este es el título generado en conversation_service {title}")
-            db.commit()"""
     
     async def update_conversation_title(self, conversation_id: uuid.UUID, first_message: str, user_id: uuid.UUID, db: Session):
         conversation = db.query(Conversation).filter_by(id=conversation_id).first()

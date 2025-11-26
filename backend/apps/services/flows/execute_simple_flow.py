@@ -7,55 +7,9 @@ from apps.services.prompt.prompt_base import build_prompt
 async def select_simple_method(tool_name: str, methods: List[Dict], user_input: str):
     """Selecciona método simple usando Groq con mejor lógica"""
     
-    """methods_info = []
-    for method in methods:
-        method_info = {
-            "name": method["name"],
-            "signature": method.get("signature", ""),
-            "description": method.get("description", "")
-        }
-        methods_info.append(method_info)
-    
-    methods_json = json.dumps(methods_info, indent=2, ensure_ascii=False)"""
 
     planning_prompt = build_prompt(tool_name, methods, user_input, task_type="simple")
 
-    
-    """selection_prompt = f""
-    HERRAMIENTA: {tool_name}
-    SOLICITUD DEL USUARIO: "{user_input}"
-   
-    MÉTODOS DISPONIBLES:
-    {methods_json}
-   
-    Esta es una tarea SIMPLE que requiere UN SOLO método.
-   
-    REGLAS IMPORTANTES:
-    1. Selecciona el método más apropiado basado en la solicitud
-    2. USA SOLO los parámetros que están en la signature del método
-    3. NO agregues parámetros como "html", "format" u otros que no estén en la signature, No incluyas user_id
-    4. Para send_email, los parámetros son: to, subject, body (y **kwargs)
-    5. Si el usuario menciona cantidad específica (ej: "3 emails"), úsala
-    6. Si el usuario pide formato HTML, incluye HTML tags directamente en el contenido (body)
-    
-   
-    EJEMPLOS CORRECTOS:
-    - "lista mis últimos 3 emails" → {{"method": "list_emails", "args": {{"max_results": 3}}}}
-    - "envía email a juan@test.com con asunto hola" → {{"method": "send_email", "args": {{"to": "juan@test.com", "subject": "hola", "body": "dynamic"}}}}
-    - "envía email HTML a juan@test.com" → {{"method": "send_email", "args": {{"to": "juan@test.com", "subject": "...", "body": "<h1>Título</h1><p>Contenido</p>"}}}}
-    - "prueba conexión" → {{"method": "test_connection", "args": {{}}}}
-   
-    INCORRECTO (NO hagas esto):
-    - {{"method": "send_email", "args": {{"to": "...", "html": true}}}} ← "html" no es parámetro válido
-    _ EVITA añadir Backticks en la Respuesta
-   
-    Para la solicitud: "{user_input}"
-   
-    Analiza la signature del método y usa SOLO parámetros válidos.
-   
-    Responde SOLO con JSON válido, TENIENDO EN CUENTA LOS FORMATOS SOLICITADOS POR EL USUARIO:
-    {{"method": "nombre_método", "args": {{"parametro_valido": "valor"}}}}
-    """ 
     
     try:
         selection_text = await call_small_llm(planning_prompt)

@@ -1,6 +1,6 @@
 /**
  * useWebSocket.js
- * Hook personalizado para manejar WebSocket en componentes React (VERSIÓN CORREGIDA)
+ * Hook personalizado para manejar WebSocket en componentes React
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';

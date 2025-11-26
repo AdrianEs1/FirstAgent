@@ -41,31 +41,7 @@ class IntelligentContext:
         # Almacenar resultado completo con prefijo del método
         self.data[f"{method_name}_result"] = result
     
-    """def _extract_from_dict(self, method_name: str, data: dict):
-        Extrae datos útiles de un diccionario
-        
-        # Buscar listas de objetos con IDs
-        for key, value in data.items():
-            if isinstance(value, list) and value:
-                # Si es lista de diccionarios con 'id'
-                if isinstance(value[0], dict) and 'id' in value[0]:
-                    ids = [item['id'] for item in value if 'id' in item]
-                    self.data[f"{key}_ids"] = ids
-                    self.data[f"{method_name}_{key}_ids"] = ids
-                    
-                    # Almacenar también los objetos completos
-                    self.data[f"{key}_data"] = value
-                    self.data[f"{method_name}_{key}_data"] = value
-            
-            # Buscar IDs individuales
-            elif 'id' in key.lower():
-                self.data[f"{method_name}_id"] = value
-                self.data[f"last_id"] = value
-            
-            # Buscar contenido de texto
-            elif any(text_key in key.lower() for text_key in ['content', 'body', 'text', 'message']):
-                self.data[f"{method_name}_content"] = value
-                self.data[f"last_content"] = value"""
+    
     
     def _extract_from_dict(self, method_name: str, data: dict):
         """Extrae datos útiles de un diccionario con prioridad en content/body"""
@@ -251,89 +227,6 @@ class IntelligentContext:
         
         return param_value
     
-    async def _generate_contextual_content(self, param_name: str, user_input: str):
-        """Genera contenido basado en el contexto actual"""
-        if param_name in ['body', 'content', 'message', 'text']:
-            return await self._generate_summary_content(user_input)
-        elif param_name in ['subject', 'title']:
-            return await self._generate_subject_content(user_input)
-        
-        return None
     
-    async def _generate_summary_content(self, user_input: str):
-        """Genera contenido de resumen basado en datos procesados"""
-        if not self.method_results:
-            return None
-        
-        # Recopilar datos procesados de forma inteligente
-        processed_data = []
-        email_content = None
-        
-        for result_info in self.method_results:
-            method = result_info['method']
-            result = result_info['result']
-            
-            if method == 'list_emails' and isinstance(result, dict):
-                messages = result.get('messages', [])
-                processed_data.append({
-                    "type": "email_list",
-                    "count": len(messages),
-                    "messages": messages[:3]  # Solo los primeros 3 para el prompt
-                })
-                
-            elif method == 'read_email' and isinstance(result, dict):
-                if result.get('success'):
-                    message = result.get('message', {})
-                    email_content = {
-                        "subject": next((h['value'] for h in message.get('payload', {}).get('headers', []) if h['name'] == 'Subject'), 'Sin asunto'),
-                        "from": next((h['value'] for h in message.get('payload', {}).get('headers', []) if h['name'] == 'From'), 'Desconocido'),
-                        "snippet": message.get('snippet', ''),
-                        "date": next((h['value'] for h in message.get('payload', {}).get('headers', []) if h['name'] == 'Date'), 'Fecha desconocida')
-                    }
-                    processed_data.append({
-                        "type": "email_content", 
-                        "data": email_content
-                    })
-        
-        if not processed_data:
-            return "No se encontraron datos para generar el resumen."
-        
-        # Generar prompt optimizado
-        generation_prompt = f"""
-        SOLICITUD DEL USUARIO: "{user_input}"
-        
-        DATOS PROCESADOS: {json.dumps(processed_data, indent=2, ensure_ascii=False)}
-        
-        Genera respuesta SOLO en el formato solicitado:
-        """
-        
-        try:
-            from apps.services.llm.llm_service import call_llm
-            html_content = await call_llm(generation_prompt)
-            
-            # Limpiar respuesta si viene con markdown
-            if html_content.startswith('```html'):
-                html_content = html_content.replace('```html', '').replace('```', '').strip()
-            
-            return html_content
-            
-        except Exception as e:
-            print(f"❌ Error generando contenido: {e}")
-            return f"""
-            <html>
-            <body style="font-family: Arial, sans-serif; padding: 20px;">
-                <h2 style="color: #333;">Resumen de Emails</h2>
-                <p>Se procesaron {len(self.method_results)} operaciones de email.</p>
-                <p><em>Error generando contenido detallado: {str(e)}</em></p>
-            </body>
-            </html>
-            """
     
-    async def _generate_subject_content(self, user_input: str):
-        """Genera asunto basado en el contexto"""
-        email_count = len([r for r in self.method_results if r['method'] in ['list_emails', 'read_email']])
-        
-        if email_count > 0:
-            return f"Resumen de tus últimos {email_count} emails - {user_input[:30]}..."
-        
-        return f"Resumen solicitado - {user_input[:40]}..."
+    

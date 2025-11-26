@@ -19,11 +19,20 @@ from tools.google_service_base import GoogleServiceBase
 
 class GmailService(GoogleServiceBase):
     def __init__(self):
-        super().__init__("gmail")
+        super().__init__(service_name="gmail", api_version="v1")
     
     def _ping_service(self, service):
-        # Gmail: obtener etiquetas como prueba de conexión
-        service.users().labels().list(userId="me").execute()
+        """Verifica conexión con Gmail obteniendo perfil."""
+        profile = service.users().getProfile(userId="me").execute()
+        
+        print(f"ℹ️ Ping Gmail ejecutado correctamente. Email: {profile.get('emailAddress')}")
+        
+        return {
+            "emailAddress": profile.get("emailAddress"),
+            "messagesTotal": profile.get("messagesTotal"),
+            "threadsTotal": profile.get("threadsTotal"),
+            "historyId": profile.get("historyId")
+        }
 
 gmail = GmailService()
 
