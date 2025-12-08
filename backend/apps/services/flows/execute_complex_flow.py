@@ -169,13 +169,28 @@ async def execute_method_sequence(tool_name: Union[str, List[str]], sequence: Li
     results = []
 
     for i, step in enumerate(sequence):
-
-        # 🔹 2️⃣ Detectar herramienta específica para este paso
-        # Si no se especifica "tool" dentro del step, usar la primera como fallback
-        step_tool_name = step.get("tool", tool_list[0])
+        
+        # === INICIO DE LA CORRECCIÓN ===
+        if not tool_list:
+            # Caso 1: tool_list es vacía (Típico para type="complex" o "conversation")
+            # Forzar el nombre de la herramienta a un placeholder para que pase el filtro.
+            # Solo permitimos esto si el paso actual es LLM, de lo contrario, fallamos.
+            if step.get("action") == "llm":
+                step_tool_name = "llm_placeholder" # Nombre genérico que no se usará en la ejecución real
+            else:
+                error_msg = "No se especificó herramienta para una acción que no es LLM."
+                results.append({"step": i+1, "success": False, "error": error_msg})
+                print(f"❌ {error_msg}")
+                break
+        else:
+            # Caso 2: tool_list NO es vacía (Lógica original)
+            # Si no se especifica "tool" dentro del step, usar la primera como fallback
+            step_tool_name = step.get("tool", tool_list[0])
+            
+        
         step_tool = TOOL_REGISTRY.get(step_tool_name)
 
-        if not step_tool:
+        if not step_tool and step_tool_name != "llm_placeholder": # Ignorar el placeholder si no existe
             error_msg = f"Tool '{step_tool_name}' no encontrada"
             results.append({"step": i+1, "success": False, "error": error_msg})
             print(f"❌ {error_msg}")

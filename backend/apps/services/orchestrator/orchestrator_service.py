@@ -66,8 +66,8 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
     decision_prompt = get_decision_prompt(user_input, context, available_tools)
 
 
-    decision_text = await call_small_llm(decision_prompt)
-    print(f"🤖 Decisión de Groq: {decision_text}")
+    decision_text = await call_llm(decision_prompt)
+    print(f"🤖 Decisión de Gemini en Clasificación de accion: {decision_text}")
 
     # Emitir evento: Analizando
     if event_callback:
@@ -228,7 +228,60 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
 
 
     # === 4. Self-reflection evolucionado ===
+    
     all_methods = []
+
+    # --- NUEVA LÓGICA DE VALIDACIÓN ---
+    # Si no hay acciones, se saltan las llamadas a evolved_self_reflection.
+    # Esto ocurre cuando task_type es 'complex' o 'conversation'.
+    if not actions:
+        print("🔍 No hay acciones requeridas. Saltando Self-reflection.")
+        # Si no hay acciones, 'all_methods' queda vacío (lo cual es correcto)
+        
+    # --- LÓGICA EXISTENTE PARA MÚLTIPLES ACCIONES ---
+    elif isinstance(actions, list) and len(actions) > 1:
+        print(f"🔍 Reflexión múltiple: {actions}")
+        for tool in actions:
+            reflection_result = await evolved_self_reflection(tool, user_input)
+            
+            # ... (código para manejar errores y agregar métodos) ...
+            if "error" in reflection_result:
+                return {
+                    "success": False,
+                    "message": None,
+                    "error": f"[ORCH] {reflection_result['error']}"
+                }
+            for m in reflection_result["methods"]:
+                m["tool"] = tool
+                all_methods.append(m)
+
+    # --- LÓGICA EXISTENTE PARA UNA SOLA ACCIÓN ---
+    # Entra aquí si 'actions' NO está vacío y no tiene más de 1 elemento (len == 1)
+    else:
+        # Se asegura de obtener la acción, sea una lista con un elemento o un string (por seguridad)
+        action = actions[0] if isinstance(actions, list) and actions else actions
+        
+        # ⚠️ Nota: 'actions' en este punto debe ser seguro que tiene al menos un elemento,
+        # ya que el caso de lista vacía se manejó arriba con 'if not actions:'
+        
+        reflection_result = await evolved_self_reflection(action, user_input)
+        
+        # ... (código para manejar errores y agregar métodos) ...
+        if "error" in reflection_result:
+            return {
+                "success": False,
+                "message": None,
+                "error": f"[ORCH] {reflection_result['error']}"
+            }
+        for m in reflection_result["methods"]:
+            m["tool"] = action
+            all_methods.append(m)
+
+    methods = all_methods
+    # Nota: Si actions fue [], methods será [] y el orquestador continuará.
+    print(f"📋 Métodos combinados: {[m['name'] for m in methods]}")
+
+    """all_methods = []
 
     if isinstance(actions, list) and len(actions) > 1:
         print(f"🔍 Reflexión múltiple: {actions}")
@@ -257,12 +310,14 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
             all_methods.append(m)
 
     methods = all_methods
-    print(f"📋 Métodos combinados: {[m['name'] for m in methods]}")
+    print(f"📋 Métodos combinados: {[m['name'] for m in methods]}")"""
 
 
 
     # === 5. Planificación/Selección según tipo de tarea ===
     intelligent_context = IntelligentContext()
+    
+    action = actions[0] if actions else None
 
     if task_type == "simple":
         # Groq selecciona método simple
@@ -280,7 +335,7 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
     elif task_type in ["complex", "multi_tool"]:
     # ✅ Adaptar para soportar una o varias herramientas
         
-        sequence = await plan_method_sequence(actions, methods, user_input, task_type)
+        sequence = await plan_method_sequence(action, methods, user_input, task_type)
         
         if not sequence:
             return {

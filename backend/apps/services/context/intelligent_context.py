@@ -1,6 +1,6 @@
 import json
 from typing import Any
-
+from apps.services.llm.llm_service import call_llm
 
 
 class IntelligentContext:
@@ -226,6 +226,58 @@ class IntelligentContext:
             return generated_content
         
         return param_value
+    
+    async def _generate_contextual_content(self, param_name: str, user_input: str) -> str:
+        """
+        Genera contenido usando el LLM basándose en la necesidad del parámetro
+        y la entrada original del usuario.
+        
+        NOTA: Para que esto funcione, la instancia de IntelligentContext
+        debe tener acceso al servicio LLM (ej: self.llm_service).
+        """
+        
+        # ⚠️ Verificación Crucial: Asegúrate de que el servicio LLM esté disponible
+        if not hasattr(self, 'llm_service') or self.llm_service is None:
+            # En un entorno real, levantarías una excepción o devolverías un error
+            print("❌ ERROR: El servicio LLM no está conectado a IntelligentContext.")
+            return f"Error: LLM service not available for dynamic content generation of '{param_name}'."
+
+        # 1. Definir el prompt de generación
+        # Este prompt le dice al LLM qué hacer. Usaremos la entrada original del usuario
+        # para darle contexto.
+        
+        if param_name == 'body':
+            prompt_instruction = (
+                "Genera un cuerpo de texto profesional, completo y persuasivo "
+                "basado en la siguiente solicitud del usuario. Tu respuesta debe ser "
+                "SOLO el cuerpo del texto, sin introducción ni metadatos: "
+            )
+        elif param_name == 'subject':
+            prompt_instruction = (
+                "Genera un asunto de correo conciso, atractivo y profesional "
+                "basado en la siguiente solicitud del usuario. Tu respuesta debe ser "
+                "SOLO el asunto del texto, sin introducción ni metadatos: "
+            )
+        else:
+            # Generación genérica para otros parámetros dinámicos
+            prompt_instruction = (
+                f"Genera contenido para el parámetro '{param_name}' basado en el contexto. "
+                "Tu respuesta debe ser SOLAMENTE el valor de contenido generado: "
+            )
+        
+        full_prompt = f"{prompt_instruction}\n\n[SOLICITUD DEL USUARIO]: {user_input}"
+        
+        # 2. Llamada al servicio LLM (Asumiendo que self.llm_service tiene un método 'generate')
+        try:
+            # 💡 NOTA: La forma exacta de llamar al LLM depende de tu SDK
+            generated_content = await call_llm(full_prompt)
+            
+            # 3. Limpieza de salida (opcional, pero recomendada)
+            return generated_content.strip()
+
+        except Exception as e:
+            print(f"❌ Error durante la generación LLM para '{param_name}': {e}")
+            return f"Error al generar contenido LLM: {param_name}"
     
     
     
