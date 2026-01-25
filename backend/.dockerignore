@@ -7,4 +7,5 @@ venv/
 *.pt
 *.bin
 *.zip
+*.pickle
 .cache/

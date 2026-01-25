@@ -1,23 +1,18 @@
 import { useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
+import { geminiSanitizeSchema } from '../services/MarkdownHTMLStyle'; 
 
 function ChatArea({ messages, loading }) {
     const messagesEndRef = useRef(null);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
     useEffect(() => {
-
-        // 🟢 Desplaza suavemente hacia el final cada vez que cambian los mensajes
-        // o cuando el loading cambia (para que siga el "efecto de escritura")
         messagesEndRef.current?.scrollIntoView({
             behavior: "smooth",
             block: "end"
         });
     }, [messages, loading]);
-
 
     return (
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -33,14 +28,22 @@ function ChatArea({ messages, loading }) {
                         className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                         <div
-                            className={`max-w-[70%] rounded-2xl px-4 py-3 ${
+                            className={`max-w-[70%] rounded-2xl px-4 py-3 break-words ${
                                 msg.role === 'user'
                                     ? 'bg-cyan-600 text-white'
                                     : 'bg-gray-100 text-gray-800'
                             }`}
                         >
-                            <div className="prose prose-sm max-w-none text-sm">
-                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            <div className="prose prose-sm max-w-none text-sm break-words overflow-wrap-anywhere">
+                                <ReactMarkdown
+                                    rehypePlugins={[
+                                        rehypeRaw,
+                                        [rehypeSanitize, geminiSanitizeSchema]
+                                    ]}
+                                >
+                                    {msg.content}
+                                </ReactMarkdown>
+
                             </div>
                             <p className={`text-xs mt-2 ${
                                 msg.role === 'user' ? 'text-cyan-100' : 'text-gray-500'

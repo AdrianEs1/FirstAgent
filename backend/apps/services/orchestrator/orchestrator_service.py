@@ -9,6 +9,7 @@ from apps.services.flows.execute_simple_flow import select_simple_method
 from apps.services.flows.execute_complex_flow import plan_method_sequence, execute_method_sequence
 from apps.services.utils.utils import get_function_signature
 from apps.services.prompt.prompt_base import get_decision_prompt
+import textwrap
 
 
 async def evolved_self_reflection(tool_name: str, user_input: str) -> dict:
@@ -59,7 +60,7 @@ EventCallback = Optional[Callable[[str, dict], Awaitable[None]]]
 async def orchestrator(user_input: str, user_id: str = None, context: str = "", event_callback: EventCallback = None) -> dict:
     """Orquestador genérico y escalable"""
     
-    # === 1. Decisión inicial con Groq ===
+    # === 1. Decisión inicial con G ===
     available_tools = TOOL_REGISTRY.list_tools()
     print(f"🔧 Herramientas disponibles: {available_tools}")
     
@@ -81,7 +82,7 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
         return {
             "success": False,
             "message": None,
-            "error": f"[ORCH] Decisión inválida de Groq: {decision_text}"
+            "error": f"[ORCH] Decisión inválida de Gemini: {decision_text}"
         }
 
     actions = decision.get("actions", [])
@@ -143,6 +144,8 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
         Contexto: {context}
 
         Responde de manera natural y conversacional.
+        NO utilices formatos HTML O JSON
+        No utilices backticks
         """
         response = await call_llm(conversation_prompt)
         
@@ -191,32 +194,17 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
             tools_list = " y ".join([f"**{t.capitalize()}**" for t in disconnected_tools])
             tools_simple = ", ".join(disconnected_tools)
             
-            guide_message = f"""⚠️ **Necesito acceso a** {tools_list}
-
-    Para ejecutar tu petición:
-    {user_input[:60]}{'...' if len(user_input) > 60 else ''}
-
-    Primero necesitas conectar {tools_list}.
-
-
-    📍 Cómo hacerlo:
-
-    1. Ve al menú Apps (esquina superior derecha)
-    2. Busca {tools_list}
-    3. Haz clic en Conectar
-    4. Autoriza los permisos en la ventana de Google
-    5. Vuelve e intenta tu comando de nuevo
-
-
-    💡 Tip: ✅ Puedes conectar todas las apps de una vez para 
-            no tener que hacerlo después.
-
-            ✅ Si existe al menos una app conectada y decides
-            desconectar otra app, puedes volver a conectarla
-            sin necesidad del flujo Oauth de google ya que el
-            token seguirá siendo válido
-
-    """
+            guide_message =f"""⚠️ **Necesito acceso a** {tools_list}\n
+Para ejecutar tu petición: \n
+{user_input[:60]}{'...' if len(user_input) > 60 else ''}\n
+Primero necesitas conectar {tools_list}.\n\n
+📍 **Cómo hacerlo:**\n
+- Ve al menú Apps (esquina superior derecha)
+- Busca {tools_list}
+- Haz clic en Conectar
+- Autoriza los permisos en la ventana de Google
+- Vuelve e intenta tu comando de nuevo
+"""
             
             return {
                 "success": False,
@@ -281,38 +269,6 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
     # Nota: Si actions fue [], methods será [] y el orquestador continuará.
     print(f"📋 Métodos combinados: {[m['name'] for m in methods]}")
 
-    """all_methods = []
-
-    if isinstance(actions, list) and len(actions) > 1:
-        print(f"🔍 Reflexión múltiple: {actions}")
-        for tool in actions:
-            reflection_result = await evolved_self_reflection(tool, user_input)
-            if "error" in reflection_result:
-                return {
-                    "success": False,
-                    "message": None,
-                    "error": f"[ORCH] {reflection_result['error']}"
-                }
-            for m in reflection_result["methods"]:
-                m["tool"] = tool  # Marca de procedencia
-                all_methods.append(m)
-    else:
-        action = actions[0] if isinstance(actions, list) else actions
-        reflection_result = await evolved_self_reflection(action, user_input)
-        if "error" in reflection_result:
-            return {
-                "success": False,
-                "message": None,
-                "error": f"[ORCH] {reflection_result['error']}"
-            }
-        for m in reflection_result["methods"]:
-            m["tool"] = action
-            all_methods.append(m)
-
-    methods = all_methods
-    print(f"📋 Métodos combinados: {[m['name'] for m in methods]}")"""
-
-
 
     # === 5. Planificación/Selección según tipo de tarea ===
     intelligent_context = IntelligentContext()
@@ -370,6 +326,7 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
     else:
         print("⚠️ user_id NO recibido en orchestrator")  # ← Y esto
 
+    intelligent_context.reset_resolution_counters()
 
     execution_result = await execute_method_sequence(actions, sequence, user_input, intelligent_context, event_callback=event_callback)
     
@@ -398,7 +355,6 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
     # Obtener el mensaje user-friendly del último método ejecutado
     response_message = "Operación completada"  # Mensaje por defecto
 
-    # REEMPLAZAR todo el bloque if results: con:
 
     if results:
         # Obtener el último resultado exitoso
@@ -407,22 +363,29 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
             if result.get("success", False):
                 last_successful_result = result
                 break
-    
+
         if last_successful_result:
-            # Determinar el nombre del método según el tipo de paso
-            if "method" in last_successful_result:
-                # Paso de método 
+            # 🔥 FIX 1: Determinar la clave correcta según el tipo de paso
+            if last_successful_result.get("type") == "llm":
+                # Para pasos LLM, buscar en llm.generate_content (nuevo formato)
+                method_name = "llm_processing"
+                
+                # 🔥 OPCIÓN A: Buscar el contenido del último LLM
+                context_key = "llm.generate_content"  # ← Último contenido LLM
+                
+                # 🔥 OPCIÓN B (alternativa): Obtener desde el resultado directamente
+                # response_message = last_successful_result.get("result", "")
+                
+            elif "method" in last_successful_result:
+                # Paso de método normal
                 method_name = last_successful_result["method"]
-                # 🔍 Intentar incluir el prefijo de la herramienta si existe
                 tool_name = last_successful_result.get("tool")
+                
                 if tool_name:
                     context_key = f"{tool_name}.{method_name}_result"
                 else:
                     context_key = f"{method_name}_result"
-            elif last_successful_result.get("type") == "llm":
-                # Paso LLM
-                method_name = "llm_processing"
-                context_key = "llm_result"
+                    
             elif last_successful_result.get("type") == "iteration":
                 # Paso de iteración
                 method_name = f"{last_successful_result.get('method', 'unknown')}_iteration"
@@ -432,29 +395,32 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
                 method_name = "unknown_step"
                 context_key = "last_content"
             
-            # Buscar el mensaje user-friendly en los datos del contexto
+            # 🔥 FIX 2: Obtener el mensaje sin truncar ni añadir texto extra
             if context_key in intelligent_context.data:
                 method_result = intelligent_context.data[context_key]
                 
-                # Si es el resultado directo del método (dict con 'message')
-                if isinstance(method_result, dict) and "message" in method_result:
-                    response_message = method_result["message"]
-                # Si es contenido LLM (string HTML/texto)
-                elif isinstance(method_result, str) and len(method_result) > 10:
-                    # Para LLM, mostrar preview del contenido generado
-                    if method_name == "llm_processing":
-                        if method_result.startswith('<'):
-                            response_message = f"🤖 **Contenido HTML generado exitosamente**\n\n📄 **Preview:** {method_result[:150]}..."
-                        else:
-                            response_message = f"🤖 **Contenido generado exitosamente**\n\n📄 **Preview:** {method_result}..."
+                # Si es dict con 'message' (resultado de método)
+                if isinstance(method_result, dict):
+                    if "message" in method_result:
+                        response_message = method_result["message"]
+                    elif "content" in method_result:
+                        # Si es dict con 'content' (formato de llm.generate)
+                        response_message = method_result["content"]
                     else:
-                        response_message = method_result[:300] + ("..." if len(method_result) > 300 else "")
+                        response_message = str(method_result)
+                
+                # Si es string (contenido directo)
+                elif isinstance(method_result, str):
+                    # 🔥 FIX 3: NO truncar, pasar el contenido COMPLETO
+                    response_message = method_result
+                
                 else:
                     response_message = f"✅ Ejecutado {method_name} correctamente"
             else:
+                # Si no se encuentra la clave, fallback
                 response_message = f"✅ Ejecutado {method_name} correctamente"
 
-    
+    """# Para secuencias multi-tool, agregar info de la secuencia
     successful_methods = []
     for r in results:
         if r.get("success", False):
@@ -464,15 +430,10 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
                 successful_methods.append("llm_processing")
             elif r.get("type") == "iteration":
                 successful_methods.append(f"{r.get('method', 'unknown')}_iteration")
-            else:
-                successful_methods.append("unknown_step")
 
-
-
-    # Para secuencias multi-tool, agregar info de la secuencia
     if len(successful_methods) > 1:
         sequence_info = f"\n\n📊 **Secuencia completada:** {' → '.join(successful_methods)}"
-        response_message += sequence_info
+        response_message += sequence_info"""
 
     # Emitir evento: Guardando
     if event_callback:
@@ -482,7 +443,7 @@ async def orchestrator(user_input: str, user_id: str = None, context: str = "", 
 
     return {
         "success": True,
-        "message": response_message,
+        "message": response_message,  # ← Contenido COMPLETO sin truncar
         "data": {
             "tool_used": actions,
             "methods_executed": successful_methods,

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
@@ -6,7 +6,7 @@ from google.auth.transport.requests import Request
 from google.auth.exceptions import RefreshError
 from sqlalchemy.orm import Session
 from apps.models.oauth_connection import OAuthConnection
-from apps.database import SessionLocal
+from apps.models.conversation import Conversation
 from datetime import datetime
 import io
 import base64
@@ -14,7 +14,14 @@ import mimetypes
 import fitz  # PyMuPDF (para PDF)
 import docx
 import os
+import re
 from tools.google_service_base import GoogleServiceBase
+
+from fastapi import Depends
+from apps.core.dependencies import get_db
+from apps.database import SessionLocal
+
+
 
 # Scopes mínimos para Drive
 #SCOPES = ["https://www.googleapis.com/auth/drive"]
@@ -40,8 +47,181 @@ class DriveService(GoogleServiceBase):
 
 drive = DriveService()
 
-def list_files(user_id: str, query: Optional[str] = None, max_results: int = 10, auto_select: bool = True, **kwargs):
-    """Lista archivos con normalización de búsqueda"""
+
+def normalize_name(name: str) -> str:
+    """Normaliza nombres para comparación flexible."""
+    return re.sub(r"[\s_\-]", "", name.lower())
+
+def sanitize_query(query: str) -> str:
+    """
+    Limpia queries tipo Drive API:
+    name contains 'ClientesOptimusAgent'
+    """
+    if not query:
+        return query
+
+    q = query.lower().strip()
+
+    if "name contains" in q:
+        q = q.replace("name contains", "").strip()
+
+    # remover comillas simples o dobles
+    q = q.strip("'\"")
+
+    return q
+
+
+def list_files(
+    user_id: str,
+    query: Optional[str] = None,
+    max_results: int = 10,
+    auto_select: bool = True,
+    **kwargs
+):
+    """
+    Lista archivos previamente seleccionados por el usuario (Google Drive Picker).
+
+    🔑 Fuente de verdad: Conversation.context["files"]
+    🔥 NO consulta Google Drive
+    📂 Los archivos son globales al usuario (todas sus conversaciones)
+    """
+    db= SessionLocal()
+    try:
+        # 1️⃣ Obtener todas las conversaciones del usuario que tengan contexto
+        conversations: List[Conversation] = (
+            db.query(Conversation)
+            .filter(
+                Conversation.user_id == user_id,
+                Conversation.context.isnot(None)
+            )
+            .all()
+        )
+
+        # 2️⃣ Recolectar archivos desde el contexto
+        files_map = {}  # file_id -> file dict (deduplicación)
+
+        for conv in conversations:
+            context = conv.context or {}
+            files = context.get("files", [])
+
+            for f in files:
+                file_id = f.get("id")
+                if file_id and file_id not in files_map:
+                    files_map[file_id] = {
+                        "id": file_id,
+                        "name": f.get("name"),
+                        "mimeType": f.get("mime_type"),
+                        "source": f.get("source", "google_drive")
+                    }
+
+        all_files = list(files_map.values())
+
+        # 3️⃣ No hay archivos seleccionados
+        if not all_files:
+            return {
+                "success": True,
+                "files": [],
+                "auto_selected": False,
+                "needs_user_choice": False,
+                "message": (
+                    "📎 **No hay archivos disponibles**\n\n"
+                    "Primero debes seleccionar archivos desde Google Drive para poder usarlos."
+                )
+            }
+
+        # 4️⃣ Sin query → mostrar archivos disponibles
+        if not query:
+            return {
+                "success": True,
+                "files": all_files[:max_results],
+                "auto_selected": False,
+                "needs_user_choice": True,
+                "message": (
+                    f"📂 **Archivos disponibles ({len(all_files)})**\n\n"
+                    "Indica el nombre del archivo que deseas usar."
+                )
+            }
+
+        # 5️⃣ Buscar coincidencias por nombre
+        query = sanitize_query(query)
+        normalized_query = normalize_name(query)
+        matched_files = []
+
+        for f in all_files:
+            normalized_name = normalize_name(f["name"])
+
+            if (
+                normalized_query == normalized_name
+                or normalized_query in normalized_name
+            ):
+                matched_files.append(f)
+
+        # 6️⃣ No hubo coincidencias
+        if not matched_files:
+            return {
+                "success": True,
+                "files": [],
+                "auto_selected": False,
+                "needs_user_choice": False,
+                "message": (
+                    "📂 **Archivo no disponible**\n\n"
+                    f"No encontré un archivo llamado **{query}** entre los archivos seleccionados.\n\n"
+                    "👉 Selecciona el archivo desde Google Drive y vuelve a intentarlo."
+                )
+            }
+
+        matched_files = matched_files[:max_results]
+
+        # 7️⃣ Un solo archivo → auto select
+        if len(matched_files) == 1 and auto_select:
+            file = matched_files[0]
+            return {
+                "success": True,
+                "files": matched_files,
+                "auto_selected": True,
+                "selected_file": file,
+                "needs_user_choice": False,
+                "message": (
+                    "✅ **Archivo seleccionado automáticamente**\n\n"
+                    f"📄 **{file['name']}**\n"
+                    f"🆔 `{file['id']}`"
+                )
+            }
+
+        # 8️⃣ Múltiples archivos → pedir confirmación
+        user_message = f"🤔 **Encontré {len(matched_files)} archivos. ¿Cuál deseas usar?**\n\n"
+
+        for i, f in enumerate(matched_files, 1):
+            user_message += (
+                f"**{i}. {f['name']}**\n"
+                f"🆔 `{f['id']}`\n\n"
+            )
+
+        user_message += "💬 Responde con el número del archivo."
+
+        return {
+            "success": True,
+            "files": matched_files,
+            "auto_selected": False,
+            "needs_user_choice": True,
+            "message": user_message
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "auto_selected": False,
+            "needs_user_choice": False,
+            "message": f"❌ **Error resolviendo archivos**\n\n{str(e)}"
+        }
+    finally:                     # 4️⃣ SIEMPRE se ejecuta
+        db.close()      
+
+
+
+"""def list_files(user_id: str, query: Optional[str] = None, max_results: int = 10, auto_select: bool = True, **kwargs):
+    ##""Lista archivos con normalización de búsqueda
     try:
         service = drive.get_service(user_id)
         
@@ -197,7 +377,7 @@ def list_files(user_id: str, query: Optional[str] = None, max_results: int = 10,
             "auto_selected": False,
             "needs_user_choice": False,
             "message": f"❌ **Error listando archivos**\n\n🚫 {str(e)}"
-        }
+        }"""
 
 # ---------------------------------------------
 # 📖 Leer contenido de un archivo

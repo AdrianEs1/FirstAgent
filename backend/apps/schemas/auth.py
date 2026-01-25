@@ -3,6 +3,16 @@ from typing import Optional
 from datetime import datetime
 import uuid
 
+class DeleteAccountRequest(BaseModel):
+    token: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=10)
+    new_password: str = Field(..., min_length=8)
+
 # Request schemas
 class UserRegister(BaseModel):
     email: EmailStr
@@ -32,3 +42,14 @@ class UserResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6)
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+class MessageResponse(BaseModel):
+    message: str

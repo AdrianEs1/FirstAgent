@@ -46,7 +46,7 @@ class GoogleServiceBase(ABC):
             
         Raises:
             ValueError: Si no existe conexión o las credenciales son inválidas
-            RefreshError: Si falla el refresh del token
+            RefreshError: Si falla el refresh del token  
         """
         db = SessionLocal()
         try:

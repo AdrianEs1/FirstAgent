@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, ARRAY, Text
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, ARRAY, Text, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from datetime import datetime
 import uuid
@@ -19,3 +19,4 @@ class Conversation(Base):
     last_message_at = Column(DateTime, default=datetime.utcnow)
     archived_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
+    context = Column(JSON, default=dict)

@@ -1,6 +1,7 @@
 from typing import List, Dict
 import json
 from apps.services.llm.small_llm_service import call_small_llm
+from apps.services.llm.llm_service import call_llm
 from apps.services.prompt.prompt_base import build_prompt
 
 
@@ -12,8 +13,8 @@ async def select_simple_method(tool_name: str, methods: List[Dict], user_input: 
 
     
     try:
-        selection_text = await call_small_llm(planning_prompt)
-        print(f"🎯 Selección de Groq: {selection_text}")
+        selection_text = await call_llm(planning_prompt)
+        print(f"🎯 Selección de Gemini(simple_method): {selection_text}")
         
         # Limpiar respuesta si viene con markdown
         if selection_text.strip().startswith('```'):

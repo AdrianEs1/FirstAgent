@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { fetchAgentRegister } from "../services/agentServices";
+import { fetchAgentRegister, fetchAgentVerifyEmailCode } from "../services/agentServices";
+
+import PasswordInput from "./PasswordInput";
 
 function RegisterCard({ onSwitchToLogin }) {
     const [email, setEmail] = useState("");
@@ -8,6 +10,11 @@ function RegisterCard({ onSwitchToLogin }) {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [step, setStep] = useState("register"); 
+    // "register" | "verify" | "success"
+
+    const [code, setCode] = useState("");
+
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -28,23 +35,94 @@ function RegisterCard({ onSwitchToLogin }) {
 
         try {
             await fetchAgentRegister({ email, password, name });
-            setSuccess(true);
+            setStep("verify");
+            setLoading(false);
+            {/*setSuccess(true);
             
             setTimeout(() => {
                 if (onSwitchToLogin) {
                     onSwitchToLogin();
                 }
-            }, 2000);
+            }, 2000);*/}
 
-        } catch (error) {
-            console.error("Error en el registro", error);
-            const errorMessage = error.detail || error.message || "Error al registrarse";
+        } catch (err) {
+            console.error("Error en el registro");
+            const errorMessage = err?.response?.data?.detail ||
+                err?.message || "Error al registrarse";
             setError(errorMessage);
             setLoading(false);
         }
     };
 
-    if (success) {
+    const handleVerifyCode = async (e) => {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
+
+        if (code.length !== 6) {
+            setError("El código debe tener 6 dígitos");
+            setLoading(false);
+            return;
+        }
+
+        try {
+            await fetchAgentVerifyEmailCode({ email, code });
+
+            setStep("success");
+
+            setTimeout(() => {
+            onSwitchToLogin?.();
+            }, 2000);
+
+        } catch (error) {
+            setError(error?.message || "Código inválido o expirado");
+            setLoading(false);
+        }
+    };
+
+    
+    if (step === "verify") {
+        return (
+            <div className="bg-cyan-50 p-6 rounded-xl shadow-xl max-w-sm mx-auto w-full text-center">
+            <h3 className="text-xl font-bold mb-2">Verifica tu correo</h3>
+            <p className="text-gray-600 mb-4 text-sm">
+                Hemos enviado un código de 6 dígitos a:
+                <br />
+                <span className="font-semibold">{email}</span>
+            </p>
+
+            {error && (
+                <div className="mb-3 p-2 bg-red-100 text-red-700 rounded text-sm">
+                {error}
+                </div>
+            )}
+
+            <form onSubmit={handleVerifyCode}>
+                <input
+                type="text"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                maxLength={6}
+                placeholder="Código de verificación"
+                className="w-full text-center tracking-widest text-xl border rounded-lg py-3 px-4 focus:ring-2 focus:ring-cyan-500"
+                disabled={loading}
+                />
+
+                <button
+                type="submit"
+                disabled={loading}
+                className="mt-4 w-full bg-cyan-600 text-white font-semibold py-2 rounded-lg hover:bg-cyan-700 transition"
+                >
+                {loading ? "Verificando..." : "Verificar cuenta"}
+                </button>
+            </form>
+            </div>
+        );
+    }
+
+
+
+    if (step=== "success") {
         return (
             <div className="bg-cyan-50 p-6 rounded-xl shadow-xl max-w-sm mx-auto w-full text-center py-12">
                 <div className="mb-4 mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
@@ -74,7 +152,7 @@ function RegisterCard({ onSwitchToLogin }) {
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="border-2 border-gray-500/100 rounded-lg pl-2 w-full py-2"
+                        className="w-full border rounded-lg py-2 px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                         placeholder="nombre completo"
                         disabled={loading}
                     />
@@ -85,19 +163,17 @@ function RegisterCard({ onSwitchToLogin }) {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="border-2 border-gray-500/100 rounded-lg pl-2 w-full py-2"
+                        className="w-full border rounded-lg py-2 px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                         placeholder="correo electrónico"
                         disabled={loading}
                     />
                 </div>
 
                 <div className="pb-2 flex justify-center">
-                    <input 
-                        type="password"
+                    <PasswordInput
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="border-2 border-gray-500/100 rounded-lg pl-2 w-full py-2"
-                        placeholder="contraseña (mínimo 8)"
+                        placeholder="contraseña"
                         disabled={loading}
                     />
                 </div>
@@ -120,6 +196,9 @@ function RegisterCard({ onSwitchToLogin }) {
                             'Crear Cuenta'
                         )}
                     </button>
+                </div>
+                <div className="pt-4 pb-2 flex justify-center">
+                    <p>Al hacer clic en Crear Cuenta, aceptas la <a className="text-cyan-600 hover:underline font-semibold" href="/privacy">Privacy Policy</a> y los <a className="text-cyan-600 hover:underline font-semibold" href="/terms">Terms of Service</a></p>
                 </div>
             </form>
 

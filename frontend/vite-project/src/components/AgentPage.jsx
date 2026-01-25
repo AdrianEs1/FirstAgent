@@ -5,10 +5,15 @@ import { useAuth } from "../context/AuthContext";
 import Header from "../components/Header";
 import Sidebar from "../components/Sidebar";
 import ChatArea from "../components/ChatArea";
+import NotificationDeleteAccount from "../components/NotificationDeleteAccount";
+import DeleteArchiveConversation from "../components/DeleteArchiveConversation";
+import LocalFilePickerButton from "../components/LocalFilePickerButton"
+import { fetchAgentSendFiles} from "../services/agentServices";
+
+
 import {
   fetchConversations,
   fetchConversationById,
-  sendMessageToConversation,
   getOAuthStatus,
   connectOAuth,
   disconnectOAuth,
@@ -18,9 +23,11 @@ import { Menu, X, Send } from "lucide-react";
 function AgentPage() {
   const { user } = useAuth();
 
+  
+
   // Hook de WebSocket
   const { 
-    isConnected, 
+    //isConnected, 
     currentEvent, 
     connect, 
     sendMessage: sendWsMessage,
@@ -38,12 +45,22 @@ function AgentPage() {
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(true);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [conversationModal, setConversationModal] = useState(null);
+  const [showArchived, setShowArchived] = useState(() => {
+
+    return localStorage.getItem("conv_view") === "archived";
+  });
+
+  
+
 
   // ✅ Cargar conversaciones al inicio
   useEffect(() => {
     loadConversations();
     checkOAuthStatus();
   }, []);
+
 
   // Conectar WebSocket al cargar
   useEffect(() => {
@@ -137,6 +154,13 @@ function AgentPage() {
   };
 
 
+  useEffect(() => {
+    localStorage.setItem(
+      "conv_view",
+      showArchived ? "archived" : "active"
+    );
+  }, [showArchived]);
+
 
   // ✅ Cargar mensajes de una conversación
   const loadConversationMessages = async (conversationId) => {
@@ -196,7 +220,6 @@ function AgentPage() {
   };
 
 
-
   // ✅ Enviar mensaje (crea conversación automáticamente si no existe)
   // ✅ Enviar mensaje via WebSocket
   const handleSendMessage = async (e) => {
@@ -232,6 +255,7 @@ function AgentPage() {
     }
   };
 
+
   // 🧾 Nueva conversación (manual)
   const handleNewConversation = () => {
     setActiveConversationId(null);
@@ -239,12 +263,63 @@ function AgentPage() {
   };
 
 
+  
+
 
   // 🗂️ Seleccionar conversación
-  const handleSelectConversation = (id) => {
-    setActiveConversationId(id);
-    loadConversationMessages(id);
+  const handleSelectConversation = (conversation) => {
+    if (conversation.status === "archived") {
+      return; // ⛔ NO abrir conversaciones archivadas
+    }
+
+    setActiveConversationId(conversation.id);
+    loadConversationMessages(conversation.id);
+    
   };
+
+
+
+  const handleDeleteConversation = (id) => {
+    setConversationModal({ id, action: "delete" });
+  };
+
+
+
+  const handleFilesSelected = async (files) => {
+    if (!activeConversationId) return;
+
+    const formData = new FormData();
+    formData.append("conversation_id", activeConversationId);
+
+    files.forEach(file => {
+      formData.append("files", file);
+    });
+
+    try {
+      const res = await fetchAgentSendFiles(formData);
+      console.log("📎 Respuesta backend:", res);
+    } catch (error) {
+      console.error(
+        error?.response?.data?.detail || "Se produjo un error al enviar los archivos"
+      );
+      alert("Se produjo un error al enviar los archivos");
+    }
+  };
+
+
+
+
+
+
+  const activeConversations = conversations.filter(
+    (c) => c.status !== "archived"
+  );
+
+  const archivedConversations = conversations.filter(
+    (c) => c.status === "archived"
+  );
+
+
 
   // Función de escritura progresiva
   const typeWriterEffect = (text, onUpdate, onFinish) => {
@@ -277,10 +352,11 @@ function AgentPage() {
   return (
     <div className="flex flex-col h-screen bg-gray-50">
     {/* HEADER */}
-    <Header onConnectApp={handleConnectApp} connectedApps={connectedApps} />
+      <Header onConnectApp={handleConnectApp} connectedApps={connectedApps} onDeleteAccount={() => setShowDeleteAccountModal(true)}/>
     
     {/* CONTENEDOR PRINCIPAL */}
     <div className="flex flex-1 overflow-hidden relative">
+      
       {/* Sidebar toggle (mobile) */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -304,13 +380,17 @@ function AgentPage() {
         } md:translate-x-0 transition-transform duration-300 md:w-80 w-64 bg-white shadow-lg z-50 flex-shrink-0 fixed md:static top-0 left-0 h-full overflow-y-auto`}
       >
         <Sidebar
-          conversations={conversations}
+          conversations={showArchived ? archivedConversations : activeConversations}
           activeConversationId={activeConversationId}
           onSelectConversation={handleSelectConversation}
           onNewConversation={handleNewConversation}
+          onDeleteConversation={handleDeleteConversation}
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
         />
+
+
+
       </aside>
       
       {/* ✅ ÁREA DE CHAT con scroll independiente */}
@@ -347,11 +427,16 @@ function AgentPage() {
         
         
         {/* INPUT AREA */}
+        
         <form
           onSubmit={handleSendMessage}
           className="border-t border-gray-200 p-4 bg-gray-50"
         >
           <div className="max-w-4xl mx-auto flex items-center gap-3">
+
+            <LocalFilePickerButton enabled={true}
+              onFilesSelected={handleFilesSelected} />
+            
             <textarea
               ref={textareaRef}
               value={newMessage}
@@ -381,6 +466,68 @@ function AgentPage() {
         </form>
       </div>
     </div>
+
+    {showDeleteAccountModal && (
+      <div className="fixed inset-0 flex justify-center items-center bg-black/50 z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative">
+            <button
+              onClick={() => setShowDeleteAccountModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
+            >
+              <X size={24} />
+            </button>
+            <NotificationDeleteAccount
+              onClose={() => setShowDeleteAccountModal(false)}
+            />
+          </div>
+        </div>
+    
+    )}
+
+    {conversationModal && (
+      <div className="fixed inset-0 flex justify-center items-center bg-black/50 z-50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative">
+          <button
+            onClick={() => setConversationModal(null)}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
+          >
+            <X size={24} />
+          </button>
+
+          <DeleteArchiveConversation
+            conversationId={conversationModal.id}
+            action={conversationModal.action}
+            onClose={() => setConversationModal(null)}
+            onSuccess={() => {
+              const { id, action } = conversationModal;
+
+              setConversationModal(null);
+
+              setConversations((prev) => {
+
+                if (action === "delete") {
+                  return prev.filter((c) => c.id !== id);
+                }
+
+                return prev;
+              });
+
+              // limpiar chat si era la activa
+              if (id === activeConversationId) {
+                setActiveConversationId(null);
+                setMessages([]);
+              }
+
+            }}
+          />
+
+        </div>
+      </div>
+    )}
+
+
+
+
   </div>
 
   );

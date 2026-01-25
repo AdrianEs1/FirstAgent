@@ -12,7 +12,7 @@ from typing import List, Dict, Union
 # ======================================================
 
 GLOBAL_RULES = """
-    GENERAL RULES (ENGLISH, for precision):
+    GENERAL RULES:
     - Always respond with a valid JSON object.
     - Never include Markdown, backticks, or commentary.
     - Do not invent or modify method names.
@@ -21,12 +21,41 @@ GLOBAL_RULES = """
     - All dynamic content placeholders should be written as "dynamic".
     - Keep the JSON clean, well-formatted, and minimal.
 
-    REGLAS GENERALES (ESPAÑOL, para contexto humano):
-    - Devuelve ÚNICAMENTE JSON válido, sin texto adicional.
-    - No inventes nombres de métodos ni parámetros.
-    - Si el usuario pide contenido (correo, resumen, texto), genera texto natural completo.
-    - Evita incluir `html=True` u otros flags no soportados.
-    - No uses comillas invertidas (backticks).
+    DATA FLOW RULE:
+    - Every method that requires content (like 'body' in email or 'content' in upload) 
+      MUST be preceded by a data-gathering step (read_file, read_email, or action:llm).
+    - You cannot use a 'dynamic' value if the source of that data has not been accessed 
+      in a previous step of the SAME sequence.
+      
+
+    GENERAL RULES:
+    - Return ONLY a valid JSON object, with no additional text.
+    - Do NOT invent method names or parameters.
+    - If the user requests content (email, summary, text), generate complete, natural language output.
+    - Avoid including unsupported flags such as `html=True` or similar.
+    - Do NOT use backticks or Markdown formatting.
+
+    HARD CONSTRAINT LOCAL FILES:
+    - For LocalFiles, read_file MUST NEVER be called unless list_files appears earlier in the SAME sequence.
+    - Any plan that calls LocalFiles.read_file without a previous LocalFiles.list_files step is INVALID.
+    - The path argument of read_file MUST come from the output of list_files.
+    - File names provided by the user are NOT valid paths.
+
+    AGENT QUERY RULE:
+    - Values provided in agent-generated JSON fields like "query" represent logical identifiers.
+    - Logical identifiers MUST be resolved via lookup (e.g. list_files) before being used as paths or ids.
+    - Never pass a logical identifier directly to read_file.
+
+    EMAIL AGGREGATION RULE:
+    - If multiple recipient email addresses are obtained from a data source
+      AND the email content (subject and body) is identical for all recipients,
+      the agent MUST send a SINGLE email.
+    - In this case, the "to" field MUST include all email addresses as a
+      comma-separated list.
+    - The agent MUST NOT generate multiple send_email calls when the content
+      is the same for all recipients.
+    - Multiple send_email calls are ONLY allowed if the content differs per recipient.
+
     """
 
 # ======================================================
@@ -65,13 +94,16 @@ def get_prompt_template(task_type: str) -> str:
         detailed content using an LLM. The output MUST be a valid JSON object (no markdown, no backticks).
 
         GUIDELINES:
-        1. Prefer a short SEQUENCE of steps instead of a single call when the user requests analysis
-          or summarization of a file. Typical flow: find file → read file → LLM summarizes/analyzes.
+        1. STRICT DEPENDENCY: If a task requires information NOT provided in the 'User request', 
+        you MUST insert steps to fetch it. 
+        - Need to summarize a file? Steps: list_files -> read_file -> action:llm.
+        - Need to reply to an email? Steps: search_emails -> read_email -> action:llm -> send_email.
         2. Use only methods present in AVAILABLE METHODS. Do not invent method names or args.
         3. When you need file content, include a step with {"method": "read_file", "args": {"file_id": "<id|dynamic>"}}.
           If the plan discovers the file by name first, use list_files then read_file with file_id="dynamic".
-        4. Use an LLM reasoning step for generation: {"action":"llm", "task":"<instructions for generation>"}.
-          The LLM step should receive the extracted content (resolved at runtime) and produce the final user-facing text.
+        4. LLM ACTION AS A BRIDGE: 
+        Use {"action": "llm", "task": "..."} as a bridge between FETCHING and ACTING. 
+        The LLM action converts raw data (artifacts) into the final format needed for the next method.
         5. If the user requested a structured summary (e.g. "tema, resumen, recomendaciones"), instruct the LLM step to
           return the final content in that exact structure and language.
         6. Do NOT use "dynamic" for fields that must be produced by the LLM itself — instead, put those instructions into the "task".
@@ -82,7 +114,29 @@ def get_prompt_template(task_type: str) -> str:
         
 
 
+        VALIDATION RULE:
+        Before returning the JSON:
+        - If read_file is present and the tool is LocalFiles,
+          verify that list_files exists earlier in the sequence.
+        - If not, the plan is invalid and MUST be corrected.
+
         EXAMPLE FLOWS (use these patterns when appropriate):
+
+        — INVALID EXAMPLE (DO NOT DO THIS):
+
+        { 
+          "sequence": [
+            {"method": "read_file", "args": {"path": "report"}}
+          ]
+        }
+
+        — CORRECT EXAMPLE (LOCAL FILES REQUIRE DISCOVERY):
+        {
+          "sequence": [
+            {"method": "list_files", "args": {"query": "name contains 'report'"}},
+            {"method": "read_file", "args": {"path": "dynamic"}}
+          ]
+        }
 
         — If file name must be located then summarized:
         {
@@ -125,7 +179,6 @@ def get_prompt_template(task_type: str) -> str:
         7. Keep the sequence concise and goal-oriented.
         8. When generating Drive queries, prefer "name contains '<keyword>'" instead of "name = '<keyword>'" unless the user specifies the full filename with its extension.
 
-
         EXAMPLES:
         {{
           "sequence": [
@@ -167,7 +220,7 @@ def build_prompt(tool_name: Union[str, List[str]], methods: List[Dict], user_inp
 
     # 🔹 4️⃣ Agregar instrucción especial si el tipo es multi_tool
     multi_tool_note = ""
-    if task_type == "multi_tool":
+    if task_type in ["complex", "multi_tool"]:
         multi_tool_note = """
         ⚙️ INSTRUCCIÓN ESPECIAL:
         - Puedes combinar métodos de distintas herramientas para resolver la petición del usuario.
@@ -180,6 +233,74 @@ def build_prompt(tool_name: Union[str, List[str]], methods: List[Dict], user_inp
               {"action": "llm", "task": "summarize uploaded content"}
             ]
           }
+
+          — RESOLVING FILE BY LOGICAL NAME (CRITICAL PATTERN):
+
+        User input: "lee el archivo ClientesdelAgente"
+
+        Correct plan:
+        {
+          "sequence": [
+            {
+              "method": "list_files",
+              "args": {
+                "query": "name contains 'ClientesdelAgente'"
+              }
+            },
+            {
+              "method": "read_file",
+              "args": {
+                "path": "dynamic"
+              }
+            }
+          ]
+        }
+
+        — SENDING SAME EMAIL TO MULTIPLE RECIPIENTS:
+
+        {
+          "sequence": [
+            {
+              "method": "list_files",
+              "args": { "query": "name contains 'ClientesOptimusAgent'" }
+            },
+            {
+              "method": "read_file",
+              "args": { "path": "dynamic" }
+            },
+            {
+              "method": "list_files",
+              "args": { "query": "name contains 'InvitacionOptimusAgent'" }
+            },
+            {
+              "method": "read_file",
+              "args": { "path": "dynamic" }
+            },
+            {
+              "method": "send_email",
+              "args": {
+                "to": "correoA@gmail.com, correoB@gmail.com",
+                "subject": "Invitación Optimus",
+                "body": "dynamic"
+              }
+            }
+          ]
+        }
+
+
+        Explanation:
+        - "ClientesdelAgente" is NOT a path.
+        - list_files resolves the logical name to a concrete path.
+        - read_file MUST use the resolved path, never the original name.
+
+        
+        verification_instruction = 
+        === FINAL VALIDATION CHECK ===
+        Before returning the JSON, verify:
+        1. Does Step N+1 depend on data from Step N? If so, is Step N a 'read' or 'list' method?
+        2. If I'm sending or uploading something 'dynamic', did I include a step to 'read' the source?
+        3. Is every 'file_id' or 'message_id' either explicit or marked as 'dynamic' after a search step?
+      
         """
 
     # 🔹 5️⃣ Prompt final unificado

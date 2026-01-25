@@ -10,6 +10,12 @@ class IntelligentContext:
         self.data = {}
         self.method_results = []
         self.type_registry = {}
+        self.resolution_counters = {}  # ✅ Ya lo tienes
+    
+    def reset_resolution_counters(self):
+        """Reinicia los contadores de resolución al inicio de una nueva secuencia"""
+        self.resolution_counters = {}
+        print("🔄 Contadores de resolución reiniciados")
     
     def store_result(self, method_name: str, result: Any, method_signature: str = ""):
         """Almacena el resultado de un método con análisis automático"""
@@ -27,6 +33,121 @@ class IntelligentContext:
         
         print(f"📦 Contexto actualizado por {method_name}")
         print(f"   Claves disponibles: {list(self.data.keys())}")
+
+
+    async def resolve_dynamic_arguments_with_llm(
+        self,
+        method_name: str,
+        args: dict,
+        user_input: str
+    ) -> dict:
+        """
+        Resuelve todos los argumentos marcados como 'dynamic' usando una sola llamada al LLM.
+        Retorna un dict SOLO con los parámetros resueltos.
+        """
+
+        # Detectar parámetros dinámicos
+        dynamic_params = {
+            k: v for k, v in args.items()
+            if isinstance(v, str) and v.lower() == "dynamic"
+        }
+
+        if not dynamic_params:
+            return {}
+
+        if not hasattr(self, 'llm_service') or self.llm_service is None:
+            raise RuntimeError("LLM service no está conectado al contexto")
+
+        # Resumen del contexto (NO todo, solo lo útil)
+        context_snapshot = {
+            k: v for k, v in self.data.items()
+            if any(
+                token in k.lower()
+                for token in [
+                    "content", "text", "email", "id", "subject", "body"
+                ]
+            )
+        }
+
+        print("🧠 Contexto enviado al LLM (argument resolver):")
+        for k, v in context_snapshot.items():
+            preview = str(v)
+            print(f"  - {k}: {preview[:200]}{'...' if len(preview) > 200 else ''}")
+
+
+        prompt = f"""
+        Eres un resolvedor de argumentos para un orquestador de acciones.
+
+        Tu única tarea es completar los valores de los parámetros marcados como "dynamic".
+
+        REGLAS OBLIGATORIAS:
+        - Devuelve SOLO un JSON válido
+        - NO incluyas explicaciones
+        - NO incluyas texto fuera del JSON
+        - Para los correos utiliza la información correcta para remplazar los valores de to, subject, body
+        - NO inventes claves
+        - USA EXCLUSIVAMENTE las claves listadas en "Parámetros a resolver"
+        - Si no puedes resolver un valor con certeza, usa null
+
+        Método a ejecutar:
+        {method_name}
+
+        Parámetros a resolver (estas son las ÚNICAS claves permitidas):
+        {list(dynamic_params.keys())}
+
+        Contexto disponible:
+        {context_snapshot}
+
+        Solicitud original del usuario:
+        {user_input}
+
+        EJEMPLOS DE RESPUESTA CORRECTA:
+
+        Si los parámetros a resolver son:
+        ["file_id"]
+
+        Respuesta válida:
+        {{
+        "file_id": "1AbCDefGhIjK"
+        }}
+
+        Si los parámetros a resolver son:
+        ["to", "subject", "body"]
+
+        Respuesta válida:
+        {{
+        "to": "cliente@correo.com",
+        "subject": "Invitación al evento",
+        "body": "Estimado cliente, nos complace invitarle..."
+        }}
+
+        IMPORTANTE:
+        - No reutilices estructuras de otros métodos
+        - El formato SIEMPRE depende de los parámetros listados
+
+        Devuelve el JSON final ahora.
+        """
+
+
+        try:
+            from apps.services.llm.llm_service import call_llm
+            raw_response = await call_llm(prompt)
+
+            # Parseo estricto
+            import json
+            resolved_args = json.loads(raw_response)
+
+            if not isinstance(resolved_args, dict):
+                raise ValueError("El LLM no devolvió un objeto JSON")
+
+            return resolved_args
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Error resolviendo argumentos dinámicos con LLM: {e}"
+            )
+
+    
     
     def _analyze_and_store_data(self, method_name: str, result: Any):
         """Analiza el resultado y extrae datos útiles automáticamente"""
@@ -37,44 +158,73 @@ class IntelligentContext:
             self._extract_from_list(method_name, result)
         elif isinstance(result, str):
             self._extract_from_string(method_name, result)
+
+        # Acumular resultados en lista
+        results_key = f"{method_name}_results"
+        if results_key not in self.data:
+            self.data[results_key] = []
+        self.data[results_key].append(result)
         
-        # Almacenar resultado completo con prefijo del método
+        # Mantener último resultado
         self.data[f"{method_name}_result"] = result
-    
-    
     
     def _extract_from_dict(self, method_name: str, data: dict):
         """Extrae datos útiles de un diccionario con prioridad en content/body"""
         
-        # Buscar listas de objetos con IDs
+        # 🔥 FIX 1: ACUMULAR listas de objetos con IDs
         for key, value in data.items():
             if isinstance(value, list) and value:
                 # Si es lista de diccionarios con 'id'
                 if isinstance(value[0], dict) and 'id' in value[0]:
                     ids = [item['id'] for item in value if 'id' in item]
-                    self.data[f"{key}_ids"] = ids
-                    self.data[f"{method_name}_{key}_ids"] = ids
                     
-                    # Almacenar también los objetos completos
-                    self.data[f"{key}_data"] = value
-                    self.data[f"{method_name}_{key}_data"] = value
+                    # 🔥 ACUMULAR en lugar de sobrescribir
+                    generic_ids_key = f"{key}_ids"
+                    if generic_ids_key not in self.data:
+                        self.data[generic_ids_key] = []
+                    self.data[generic_ids_key].extend(ids)
+                    print(f"📝 IDs acumulados en '{generic_ids_key}': {self.data[generic_ids_key]}")
+                    
+                    # Acumular también con prefijo del método
+                    method_ids_key = f"{method_name}_{key}_ids"
+                    if method_ids_key not in self.data:
+                        self.data[method_ids_key] = []
+                    self.data[method_ids_key].extend(ids)
+                    
+                    # 🔥 Acumular objetos completos
+                    generic_data_key = f"{key}_data"
+                    if generic_data_key not in self.data:
+                        self.data[generic_data_key] = []
+                    self.data[generic_data_key].extend(value)
+                    
+                    method_data_key = f"{method_name}_{key}_data"
+                    if method_data_key not in self.data:
+                        self.data[method_data_key] = []
+                    self.data[method_data_key].extend(value)
             
             # Buscar IDs individuales
             elif 'id' in key.lower():
                 self.data[f"{method_name}_id"] = value
                 self.data[f"last_id"] = value
         
-        # 🔥 PRIORIDAD: Buscar primero content/body (contenido real del documento/email)
+        # Buscar content/body (ya estaba bien con acumulación)
         content_found = False
         for key, value in data.items():
-            if key.lower() in ['content', 'body']:  # Solo estas claves principales
+            if key.lower() in ['content', 'body']:
+                # Acumular contenidos
+                contents_key = f"{method_name}_contents"
+                if contents_key not in self.data:
+                    self.data[contents_key] = []
+                self.data[contents_key].append(value)
+
+                # Mantener último
                 self.data[f"{method_name}_content"] = value
                 self.data[f"last_content"] = value
                 content_found = True
                 print(f"✅ Contenido principal detectado en clave '{key}' ({len(str(value))} caracteres)")
-                break  # Salir inmediatamente para evitar sobrescritura
+                break
         
-        # Si no se encontró content/body, buscar text o message como fallback
+        # Fallback a text/message
         if not content_found:
             for key, value in data.items():
                 if key.lower() in ['text', 'message']:
@@ -82,7 +232,6 @@ class IntelligentContext:
                     self.data[f"last_content"] = value
                     print(f"ℹ️ Contenido alternativo detectado en clave '{key}' ({len(str(value))} caracteres)")
                     break
-
     
     def _extract_from_list(self, method_name: str, data: list):
         """Extrae datos útiles de una lista"""
@@ -117,7 +266,7 @@ class IntelligentContext:
             # Estrategia 1: Coincidencia exacta
             lambda: self.data.get(param_name),
             
-            # Estrategia 2: Buscar IDs
+            # Estrategia 2: Buscar IDs (con contador)
             lambda: self._resolve_id_parameter(param_name),
             
             # Estrategia 3: Buscar por tipo/patrón
@@ -137,28 +286,53 @@ class IntelligentContext:
         return None
     
     def _resolve_id_parameter(self, param_name: str):
-        """Resuelve parámetros que terminan en '_id'"""
+        """Resuelve parámetros que terminan en '_id' con soporte para múltiples IDs"""
         if not param_name.endswith('_id'):
             return None
         
-        # Extraer el prefijo (ej: 'message_id' -> 'message')
+        # Extraer el prefijo (ej: 'file_id' -> 'file')
         prefix = param_name[:-3]
         
         # Buscar IDs relacionados
         possible_keys = [
             f"{prefix}_ids",
             f"{prefix}s_ids",  # plural
-            f"last_id",
             "ids"
         ]
         
         for key in possible_keys:
             if key in self.data:
                 ids = self.data[key]
+                
+                # 🔥 FIX: SIEMPRE usar contador para listas (sin importar la longitud)
                 if isinstance(ids, list) and ids:
-                    return ids[0]  # Primer ID disponible
+                    # Inicializar contador si no existe
+                    if param_name not in self.resolution_counters:
+                        self.resolution_counters[param_name] = 0
+                    
+                    # Obtener índice actual
+                    index = self.resolution_counters[param_name]
+                    
+                    # Incrementar contador para la próxima llamada
+                    self.resolution_counters[param_name] += 1
+                    
+                    # Retornar ID en la posición 'index'
+                    if index < len(ids):
+                        resolved_id = ids[index]
+                        print(f"🔢 Usando ID en índice {index} de {len(ids)} disponibles")
+                        return resolved_id
+                    else:
+                        # Si se agotaron los IDs, usar el último
+                        print(f"⚠️ Índice {index} fuera de rango, usando último ID")
+                        return ids[-1]
+                
+                # String: retornar directamente
                 elif isinstance(ids, str):
                     return ids
+        
+        # Fallback: buscar last_id
+        if "last_id" in self.data:
+            return self.data["last_id"]
         
         return None
     
@@ -167,23 +341,28 @@ class IntelligentContext:
         patterns = {
             'to': ['email', 'recipient', 'destination'],
             'subject': ['title', 'topic', 'asunto'],
-            # 🔥 Fix: ahora 'body' prioriza el resultado del LLM
-            'body': ['llm_result', 'content', 'message', 'text', 'description'],
+            # 🔥 FIX: Priorizar contenido de archivos y LLM sobre mensajes de confirmación
+            'body': [
+                'drive.read_file_content',   # Prioridad 1: Contenido de archivos
+                'llm.generate_content',      # Prioridad 2: Contenido generado por LLM
+                'content',                   # Prioridad 3: Contenido genérico
+                'text',                      # Prioridad 4: Texto
+                'message',                   # Prioridad 5: Mensajes (confirmaciones)
+                'description'                # Prioridad 6: Descripciones
+            ],
             'content': ['body', 'text', 'message'],
             'query': ['search', 'term', 'keyword'],
-            'max_results': [10, 5]  # valores por defecto
+            'max_results': [10, 5]
         }
 
         if param_name in patterns:
             for pattern in patterns[param_name]:
-                if pattern in self.data:   # primero busca en llaves de self.data
+                if pattern in self.data:
                     return self.data[pattern]
-                if isinstance(pattern, (str, int)):
-                    if isinstance(pattern, int):
-                        return pattern  # valor por defecto (ej: max_results)
+                if isinstance(pattern, int):
+                    return pattern
         
         return None
-
     
     def _resolve_last_relevant(self, param_name: str):
         """Resuelve usando el último resultado relevante"""
@@ -228,24 +407,12 @@ class IntelligentContext:
         return param_value
     
     async def _generate_contextual_content(self, param_name: str, user_input: str) -> str:
-        """
-        Genera contenido usando el LLM basándose en la necesidad del parámetro
-        y la entrada original del usuario.
+        """Genera contenido usando el LLM"""
         
-        NOTA: Para que esto funcione, la instancia de IntelligentContext
-        debe tener acceso al servicio LLM (ej: self.llm_service).
-        """
-        
-        # ⚠️ Verificación Crucial: Asegúrate de que el servicio LLM esté disponible
         if not hasattr(self, 'llm_service') or self.llm_service is None:
-            # En un entorno real, levantarías una excepción o devolverías un error
             print("❌ ERROR: El servicio LLM no está conectado a IntelligentContext.")
             return f"Error: LLM service not available for dynamic content generation of '{param_name}'."
 
-        # 1. Definir el prompt de generación
-        # Este prompt le dice al LLM qué hacer. Usaremos la entrada original del usuario
-        # para darle contexto.
-        
         if param_name == 'body':
             prompt_instruction = (
                 "Genera un cuerpo de texto profesional, completo y persuasivo "
@@ -259,7 +426,6 @@ class IntelligentContext:
                 "SOLO el asunto del texto, sin introducción ni metadatos: "
             )
         else:
-            # Generación genérica para otros parámetros dinámicos
             prompt_instruction = (
                 f"Genera contenido para el parámetro '{param_name}' basado en el contexto. "
                 "Tu respuesta debe ser SOLAMENTE el valor de contenido generado: "
@@ -267,18 +433,10 @@ class IntelligentContext:
         
         full_prompt = f"{prompt_instruction}\n\n[SOLICITUD DEL USUARIO]: {user_input}"
         
-        # 2. Llamada al servicio LLM (Asumiendo que self.llm_service tiene un método 'generate')
         try:
-            # 💡 NOTA: La forma exacta de llamar al LLM depende de tu SDK
+            from apps.services.llm.llm_service import call_llm
             generated_content = await call_llm(full_prompt)
-            
-            # 3. Limpieza de salida (opcional, pero recomendada)
             return generated_content.strip()
-
         except Exception as e:
             print(f"❌ Error durante la generación LLM para '{param_name}': {e}")
             return f"Error al generar contenido LLM: {param_name}"
-    
-    
-    
-    

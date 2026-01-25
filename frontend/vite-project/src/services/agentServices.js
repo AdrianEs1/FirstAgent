@@ -6,8 +6,7 @@ export const fetchAgentRegister = async (data) => {
     const response = await api.post(`/api/auth/register`, data); //endpoint register
     return response.data; //token o mesaje JSON
   } catch (error) {
-    const errorMessage = error.response?.data?.message || "Ocurrió un error desconocido.";
-    throw new Error(errorMessage);
+    throw error
   }
 };
 
@@ -24,10 +23,40 @@ export const fetchAgentLogin = async (data) => {
 
     return response.data //JSON y access_token
   } catch (error){
-    const errorMessage = error.response?.data?.message || "Ocurrió un error desconocido.";
+    throw error;
+  }
+}
+
+
+//Funcion para Verificar cuenta atraves de un codigo
+
+export const fetchAgentVerifyEmailCode = async (data) => {
+  try{
+    const response = await api.post(`/api/auth/verify-email`, 
+      data, 
+      ); //
+
+    return response.data 
+  } catch (error){
+    const errorMessage = error.response?.data?.detail || "Ocurrió un error desconocido.";
     throw new Error(errorMessage);
   }
 }
+
+
+export const fetchAgentResendEmailCode = async (data) => {
+  try{
+    const response = await api.post(`/api/auth/resend-verification-code`, 
+      data, 
+      ); //
+
+    return response.data 
+  } catch (error){
+    const errorMessage = error.response?.data?.detail || "Ocurrió un error desconocido.";
+    throw new Error(errorMessage);
+  }
+}
+
 
 //Funcion para obtener usuario actual
 export const fetchCurrentUser = async () => {
@@ -102,23 +131,21 @@ export const fetchConversationById = async (conversationId) => {
   }
 };
 
-//Funcion para crear conversarcion
 
+////TERMINAR DE CONSTRUIR LA FUNCION PARA ENVIAR FILES ID AL BACKEND
 
-
-//Funcion para archivar conversacion por ID
-
-export const deleteConversation = async (conversationId) => {
+export const fetchAgentSendFiles = async (files) => {
   try{
-    const response = await api.delete(`/api/conversations/${conversationId}`, data, { withCredentials: true});
+    const response = await api.post(`/api/agent/context/files`, files, { withCredentials: true});
 
     return response.data;
-    
+  
   } catch (error) {
-    const errorMessage = error.response?.data?.message || "Ocurrió un error desconocido.";
-    throw new Error(errorMessage);
+    throw error;
   }
 };
+
+
 
 //Funcion para buscar conversaciones por el titulo
 export const seachConversation = async (conversationTitle) => {
@@ -132,6 +159,19 @@ export const seachConversation = async (conversationTitle) => {
     throw new Error(errorMessage);
   }
 };
+
+//Funcion para obetener token OAUTH y permitir acceso a Google Picker
+export const fetchAgentGetTokenOAUTH = async ()  => {
+  try{
+    const response = await api.get(`/api/oauth/drive/access-token`, { withCredentials: true});
+
+    return response.data;
+    
+  } catch (error) {
+    throw error;
+  }
+};
+
 
 
 // ✅ NUEVO: Maneja reconexión sin OAuth
@@ -225,5 +265,70 @@ export const disconnectOAuth = async (service = 'gmail') => {
     throw new Error(errorMessage);
   }
 };
+
+
+//Función para Enviar Correo de Recuperación de Cuenta 
+
+export const fetchAgentForgotPassword = async (data) => {
+  try {
+    const response = await api.post(`/api/auth/forgot-password`, data);
+    return response.data; 
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || "Ocurrió un error desconocido.";
+    throw new Error(errorMessage);
+  }
+};
+
+
+// Función para Restablecer Contraseña
+export const fetchAgentResetPassword = async (data) => {
+  try {
+    const response = await api.post(`/api/auth/reset-password`, data);
+    return response.data; 
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || "Ocurrió un error desconocido.";
+    throw new Error(errorMessage);
+  }
+};
+
+
+//Función para Enviar Correo de Eliminación de Cuenta
+export const fetchAgentAccountDelection = async () => {
+  try {
+    const response = await api.post(`/api/auth/request-account-deletion`);
+    return response.data; 
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || "Ocurrió un error desconocido.";
+    throw new Error(errorMessage);
+  }
+};
+
+
+//Función para Confirmar Eliminación de Cuenta
+export const fetchAgentConfirmDeleteAccount  = async (data) => {
+  try {
+    const response = await api.post(`/api/auth/confirm-account-deletion`, data);
+    return response.data; 
+  } catch (error) {
+    throw error;
+  }
+};
+
+
+
+//Funcion para eliminar conversacion por ID(Permanente)
+
+export const fetchAgentDeleteConversation = async (conversationId) => {
+  try{
+    const response = await api.delete(`/api/conversations/${conversationId}/delete-permanent`, { withCredentials: true});
+
+    return response.data;
+    
+  } catch (error) {
+    const errorMessage = error.response?.data?.detail || "Ocurrió un error desconocido";
+    throw new Error(errorMessage);
+  }
+};
+
 
 

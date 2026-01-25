@@ -8,12 +8,20 @@ const VITE_API_URL= import.meta.env.VITE_API_URL
 // Crear instancia de axios con configuración correcta
 const api = axios.create({
   baseURL: VITE_API_URL, // 👈 Pon aquí tu URL de Hugging Face
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  //headers: {
+    //'Content-Type': 'application/json',
+  //},
   withCredentials: true  // 👈 Cambia a false para Hugging Face (no necesitas cookies cross-origin)
 });
 
+
+
+const PUBLIC_ROUTES = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/forgot-password",
+  "/api/auth/reset-password",
+];
 
 
 
@@ -66,67 +74,70 @@ api.interceptors.response.use(
   async error => {
     const originalRequest = error.config;
 
-    if (error.response && error.response.status === 401) {
-      // 1. Si es refresh que falló, limpiar y redirigir
-      if (originalRequest.url.includes("/api/auth/refresh")) {
-        console.error("Refresh token inválido o expirado. Redirigiendo a login.");
-        localStorage.removeItem('token');
-        window.location.href = '/login';
-        return Promise.reject(error);
-      }
+    // ⛔ No hacer nada si:
+    // - no hay response
+    // - no es 401
+    // - es una ruta pública (login, register, etc.)
+    if (
+      !error.response ||
+      error.response.status !== 401 ||
+      PUBLIC_ROUTES.some(route => originalRequest.url.includes(route))
+    ) {
+      return Promise.reject(error);
+    }
 
-      // 2. Manejar múltiples requests 401 simultáneos
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        }).then(token => {
+    // ⛔ Si el refresh falló, limpiar sesión
+    if (originalRequest.url.includes("/api/auth/refresh")) {
+      console.error("❌ Refresh token inválido");
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+      return Promise.reject(error);
+    }
+
+    // 🔁 Manejar múltiples requests 401 al mismo tiempo
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      })
+        .then(token => {
           originalRequest.headers.Authorization = `Bearer ${token}`;
           return api(originalRequest);
-        }).catch(err => {
-          return Promise.reject(err);
-        });
-      }
+        })
+        .catch(err => Promise.reject(err));
+    }
 
-      // 3. Si no se ha intentado aún
-      if (!originalRequest._retry) {
-        originalRequest._retry = true;
-        isRefreshing = true;
+    // 🔄 Primer intento de refresh
+    if (!originalRequest._retry) {
+      originalRequest._retry = true;
+      isRefreshing = true;
 
-        try {
-          console.log('🔄 Intentando refresh token...');
-          const response = await refreshAccessToken();
-          
-          // Actualizar headers por defecto
-          api.defaults.headers.common['Authorization'] = `Bearer ${response.token}`;
-          
-          // Procesar cola de requests fallidos
-          processQueue(null, response.token);
-          
-          // Reintentar request original
-          originalRequest.headers['Authorization'] = `Bearer ${response.token}`;
-          return api(originalRequest);
-          
-        } catch (refreshError) {
-          console.error("No se pudo renovar el token", refreshError);
-          
-          // Procesar cola con error
-          processQueue(refreshError, null);
-          
-          // Limpiar y redirigir
-          localStorage.removeItem('token');
-          delete api.defaults.headers.common['Authorization'];
-          window.location.href = '/login';
-          
-          return Promise.reject(refreshError);
-        } finally {
-          isRefreshing = false;
-        }
+      try {
+        console.log("🔄 Intentando refresh token...");
+        const { token } = await refreshAccessToken();
+
+        api.defaults.headers.common.Authorization = `Bearer ${token}`;
+        processQueue(null, token);
+
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        console.error("❌ No se pudo renovar el token", refreshError);
+
+        processQueue(refreshError, null);
+        localStorage.removeItem("token");
+        delete api.defaults.headers.common.Authorization;
+        window.location.href = "/login";
+
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
-    
+
     return Promise.reject(error);
   }
 );
+
 
 export default api;
 export { refreshAccessToken };

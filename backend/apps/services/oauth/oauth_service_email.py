@@ -11,6 +11,9 @@ import os
 import secrets
 import requests
 
+"https://www.googleapis.com/auth/drive.metadata.readonly",
+"https://www.googleapis.com/auth/drive.readonly",
+
 
 # 🔧 Configuración base de Google OAuth
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
@@ -36,8 +39,6 @@ SUPPORTED_SERVICES = {
 
     "drive": {
         "scopes": [
-            "https://www.googleapis.com/auth/drive.metadata.readonly",
-            "https://www.googleapis.com/auth/drive.readonly",
             "https://www.googleapis.com/auth/drive.file",
         ],
         "profile_api": (
@@ -486,7 +487,8 @@ class OAuthService:
                     conn.last_used_at = datetime.utcnow()
 
                 db.commit()
-            except RefreshError:
+            except RefreshError as e:
+                print("🔥 RefreshError:", str(e))
                 all_connections = db.query(OAuthConnection).filter_by(
                     user_id=user_id,
                     is_active=True
@@ -496,6 +498,7 @@ class OAuthService:
                     conn.is_active = False
 
                 db.commit()
+
                 raise ValueError(f"Token de Google inválido. Reconecta tus servicios.")
         else:
             oauth_conn.last_used_at = datetime.utcnow()

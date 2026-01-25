@@ -27,6 +27,7 @@ htmlcov/
 .tox/
 .mypy_cache/
 .dmypy.json
+.pickle
 dmypy.json
 
 # ====================================

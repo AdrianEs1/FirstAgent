@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
@@ -19,6 +19,14 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
+    reset_password_token = Column(String, nullable=True, index=True)
+    reset_password_expires = Column(DateTime, nullable=True)
+    delete_account_token = Column(String, nullable=True)
+    delete_account_expires = Column(DateTime, nullable=True)
+    last_verification_sent_at = Column(DateTime, nullable=True)
+    verification_attempts = Column(Integer, default=0)
+
+
 
     def set_password(self, password: str):
         """Hashea y guarda la contraseña"""
