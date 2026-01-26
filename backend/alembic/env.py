@@ -2,7 +2,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
-from backend.config import DATABASE_URL
+from config import DATABASE_URL
 from apps.database import Base
 
 # ✅ IMPORTAR TODOS LOS MODELOS (ESTO FALTABA)
@@ -11,6 +11,8 @@ from apps.models.oauth_connection import OAuthConnection
 from apps.models.conversation import Conversation
 from apps.models.message import Message
 from apps.models.agent_action import AgentAction
+from apps.models.email_verification import EmailVerification
+from apps.models.context_file import ContextFile
 
 # this is the Alembic Config object
 config = context.config

@@ -5,6 +5,11 @@ import AgentPage from './components/AgentPage';
 import ProtectedRoute from './privateRoute/ProtectedRoute';
 import LoginCard from './components/Login';
 import RegisterCard from './components/Register';
+import ResetPassword from './components/ResetPassword';
+import ForgotPassword from './components/ForgotPassword';
+import ConfirmDeleteAccount from './components/ConfirmDeleteAccount';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import TermsOfService from './components/TermsOfService';
 
 function App() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -24,6 +29,12 @@ function App() {
     <Routes>
       {/* Landing */}
       <Route path="/" element={<Home />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/forgotpassword" element={<ForgotPassword />} />
+      <Route path="/delete-account" element={<ConfirmDeleteAccount/>}/>
+      <Route path='/privacy' element={<PrivacyPolicy/>}/>
+      <Route path='/terms' element={<TermsOfService/>}/>
+
 
       {/* Auth */}
       <Route
@@ -44,6 +55,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+      
 
       {/* 404 */}
       <Route path="*" element={<Navigate to="/" />} />

@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+import secrets
+import hashlib
 from config import JWT_SECRET_KEY, JWT_ALGORITHM, JWT_ACCESS_TOKEN_EXPIRE_MINUTES, JWT_REFRESH_TOKEN_EXPIRE_DAYS
 import os
 from dotenv import load_dotenv
@@ -62,3 +64,11 @@ def decode_token(token: str) -> dict:
         return payload
     except JWTError:
         return None
+    
+
+def generate_otp(length: int = 6) -> str:
+    return "".join(str(secrets.randbelow(10)) for _ in range(length))
+
+
+def hash_code(code: str) -> str:
+    return hashlib.sha256(code.encode()).hexdigest()

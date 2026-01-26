@@ -2,8 +2,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from apps.database import SessionLocal
-from apps.core.security import decode_token
+from apps.core.security import decode_token,create_access_token
 from apps.models.user import User
+from datetime import timedelta
 
 security = HTTPBearer()
 
@@ -63,3 +64,10 @@ async def get_current_active_user(
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Usuario inactivo")
     return current_user
+
+
+def create_secure_token(user_id: str):
+    return create_access_token(
+        data={"sub": user_id, "type": "reset"},
+        expires_delta=timedelta(minutes=30)
+    )

@@ -17,6 +17,8 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("🛑 Servidor detenido")
 
+FRONTEND_URL= os.getenv("FRONTEND_URL")
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
@@ -48,3 +50,5 @@ JWT_ACCESS_TOKEN_EXPIRE_MINUTES= os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
 JWT_REFRESH_TOKEN_EXPIRE_DAYS= os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS")
 
 COOKIE_SECURE= os.getenv("COOKIE_SECURE", "false").lower() == "true"
+
+GMAIL_SENDER= os.getenv("GMAIL_SENDER")

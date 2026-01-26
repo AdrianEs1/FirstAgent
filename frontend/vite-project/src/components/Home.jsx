@@ -24,7 +24,7 @@ function Home() {
       {/* NAVBAR */}
       <header className="w-full bg-white/80 backdrop-blur-md shadow z-50">
         <nav className="flex justify-between items-center max-w-7xl mx-auto px-4 py-3">
-          <h1 className="text-xl font-bold text-cyan-600">OptimusAgent</h1>
+          <h1 className="text-xl font-bold text-cyan-600">AssistWork</h1>
 
           {/* Links desktop */}
           <div className="hidden md:flex gap-6">
@@ -81,7 +81,7 @@ function Home() {
         {/* HERO */}
         <section className="py-12 md:py-20">
           <h2 className="text-4xl md:text-6xl font-extrabold text-gray-800 mb-4">
-            Bienvenido a <span className="text-cyan-600">OptimusAgent</span>
+            Bienvenido a <span className="text-cyan-600">AssistWork</span>
           </h2>
 
           <p className="max-w-2xl mx-auto text-gray-600 text-base md:text-lg mb-10">
@@ -92,7 +92,7 @@ function Home() {
           {/* CTA (call to action) */}
           <div className="bg-white p-8 rounded-xl shadow-lg max-w-lg mx-auto">
             <h3 className="text-2xl font-semibold text-gray-800 mb-4">
-              Explora todo lo que OptimusAgent puede hacer por ti
+              Explora todo lo que AssistWork puede hacer por ti
             </h3>
             <p className="text-gray-600 mb-6">
               Inicia sesión o crea una cuenta para acceder a tu asistente personalizado 
@@ -144,7 +144,9 @@ function Home() {
 
       {/* FOOTER */}
       <footer className="bg-cyan-600 text-white py-4 text-center text-sm">
-        © 2025 OptimusAgent. Todos los derechos reservados.
+        © 2025 AssistanWork. Todos los derechos reservados. |{" "}
+        <a href="/privacy">Privacy Policy</a> |{" "}
+        <a href="/terms">Terms of Service</a>
       </footer>
 
       
@@ -152,7 +154,7 @@ function Home() {
       {/* MODAL - LOGIN */}
       {showLoginModal && (
         <div className="fixed inset-0 flex justify-center items-center bg-black/50 z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative">
+          <div className="bg-cyan-50 rounded-2xl shadow-2xl w-full max-w-md relative">
             <button
               onClick={() => setShowLoginModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
@@ -172,7 +174,7 @@ function Home() {
       {/* MODAL - REGISTER */}
       {showRegisterModal && (
         <div className="fixed inset-0 flex justify-center items-center bg-black/50 z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative">
+          <div className="bg-cyan-50 rounded-2xl shadow-2xl w-full max-w-md relative">
             <button
               onClick={() => setShowRegisterModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"

@@ -11,6 +11,7 @@ from apps.schemas.oauth import (
 )
 from apps.models.user import User
 from apps.models.oauth_connection import OAuthConnection
+from tools.App_Drive.dic_drive_tool import DriveService
 
 
 router = APIRouter(prefix="/oauth", tags=["OAuth"])
@@ -206,3 +207,35 @@ async def disconnect_service(
         "cleaned_database": result["cleaned"],
         "remaining_services": result["remaining_services"]
     }
+
+#Endpoint para enviar token y permitir el uso de Google Picker y así poder acceder a Drive
+@router.get("/drive/access-token")
+async def get_drive_access_token(
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        drive = DriveService()
+        service = drive.get_service(str(current_user.id))
+        creds = service._http.credentials
+
+        if not creds or not creds.token:
+            raise HTTPException(
+                status_code=401,
+                detail="No se pudo obtener token válido de Drive"
+            )
+
+        return {
+            "access_token": creds.token
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail="Error obteniendo access token de Drive"
+        )
+
