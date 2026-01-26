@@ -28,5 +28,5 @@ ENV PORT=8080
 # AJUSTE CLAVE EN EL CMD:
 # Como app.py está en la raíz del contenedor (/app/app.py), 
 # ya no usas "backend.app:app", sino simplemente "app:app"
-CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port 8080"]
 
