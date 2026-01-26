@@ -15,6 +15,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 FROM python:3.11-slim
 WORKDIR /app
 
+ENV PYTHONPATH=/app
+
 # Copiar dependencias instaladas
 COPY --from=builder /usr/local/lib/python3.11 /usr/local/lib/python3.11
 COPY --from=builder /usr/local/bin /usr/local/bin
@@ -26,5 +28,5 @@ COPY . .
 EXPOSE 8080
 
 # Ejecutar FastAPI en Cloud Run
-CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port $PORT"]
+CMD ["sh", "-c", "uvicorn backend.app:app --host 0.0.0.0 --port $PORT"]
 
