@@ -34,7 +34,7 @@ function Header({ onConnectApp, connectedApps, onDeleteAccount }) {
       <nav className="flex justify-between items-center max-w-7xl mx-auto px-4 py-3">
         {/* Logo */}
         <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">
-          OptimusAgent
+          AssistWork
         </h1>
 
         <div className="flex items-center gap-4">

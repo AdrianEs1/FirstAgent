@@ -2,8 +2,7 @@ import axios from "axios";
 
 
 //http://localhost:5000/ En LOCAL 
-//https://adrianarchitecia-optimusagent.hf.space En Producción
-
+//
 const VITE_API_URL= import.meta.env.VITE_API_URL
 // Crear instancia de axios con configuración correcta
 const api = axios.create({
@@ -11,7 +10,7 @@ const api = axios.create({
   //headers: {
     //'Content-Type': 'application/json',
   //},
-  withCredentials: true  // 👈 Cambia a false para Hugging Face (no necesitas cookies cross-origin)
+  withCredentials: true  // 👈 cross-origin)
 });
 
 
