@@ -3,7 +3,7 @@
  * Servicio para gestionar conexión WebSocket con el backend
  */
 
-import  getValidAccessToken  from './authservice';
+import  {getValidAccessToken}  from '../services/authservice';
 
 
 class WebSocketService {
