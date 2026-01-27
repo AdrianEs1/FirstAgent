@@ -36,7 +36,7 @@ class WebSocketService {
       // Determinar URL según entorno
       const wsUrl = import.meta.env.DEV
         ? `ws://localhost:5000/ws?token=${token}`
-        : `wss://adrianarchitecia-optimusagent.hf.space/ws?token=${token}`;
+        : `wss://assistwork-backend-273334954418.us-central1.run.app/ws?token=${token}`;
 
       console.log("🔌 Conectando WebSocket...");
 

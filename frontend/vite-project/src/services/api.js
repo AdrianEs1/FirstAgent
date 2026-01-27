@@ -7,7 +7,7 @@ import axios from "axios";
 const VITE_API_URL= import.meta.env.VITE_API_URL
 // Crear instancia de axios con configuración correcta
 const api = axios.create({
-  baseURL: VITE_API_URL, // 👈 Pon aquí tu URL de Hugging Face
+  baseURL: VITE_API_URL, // 👈 
   //headers: {
     //'Content-Type': 'application/json',
   //},
