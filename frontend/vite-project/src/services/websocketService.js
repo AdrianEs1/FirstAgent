@@ -9,6 +9,7 @@ import  {getValidAccessToken}  from '../services/authservice';
 class WebSocketService {
   constructor() {
     this.ws = null;
+    this.sessionId = crypto.randomUUID(); // ← NUEVO
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 3000;
@@ -47,8 +48,8 @@ class WebSocketService {
       const token = await getValidAccessToken();
 
       const wsUrl = import.meta.env.DEV
-        ? `ws://localhost:5000/ws?token=${token}`
-        : `wss://assistwork-backend-273334954418.us-central1.run.app/ws?token=${token}`;
+        ? `ws://localhost:5000/ws?token=${token}&sessionId=${this.sessionId}` // ← Agregar sessionId
+        : `wss://assistwork-backend-273334954418.us-central1.run.app/ws?token=${token}&sessionId=${this.sessionId}`; // ← Agregar sessionId
 
       console.log("🔌 Conectando WebSocket...");
 
@@ -63,6 +64,13 @@ class WebSocketService {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+
+          // ← NUEVO: Filtrar por sessionId
+          if (data.session_id && data.session_id !== this.sessionId) {
+            console.log("⚠️ Evento ignorado (otra pestaña):", data.type);
+            return;
+          }
+
           console.log("📨 Evento recibido:", data.type, data);
 
           const handlers = this.messageHandlers.get(data.type) || [];
@@ -114,7 +122,8 @@ class WebSocketService {
     const payload = {
       type: "chat",
       message,
-      conversation_id: conversationId
+      conversation_id: conversationId,
+      session_id: this.sessionId  // ← NUEVO
     };
 
     console.log("📤 Enviando mensaje:", payload);
