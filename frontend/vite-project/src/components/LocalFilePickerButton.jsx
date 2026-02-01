@@ -41,16 +41,9 @@ export default function LocalFilePickerButton({
         type="button"
         onClick={openFilePicker}
         disabled={!enabled}
-        style={{
-          padding: "8px 12px",
-          borderRadius: "6px",
-          backgroundColor: enabled ? "#1a73e8" : "#ccc",
-          color: "#fff",
-          border: "none",
-          cursor: enabled ? "pointer" : "not-allowed",
-        }}
+        className="w-full flex items-center justify-center gap-2 bg-cyan-600 text-white px-4 py-3 rounded-lg hover:bg-cyan-700 transition font-medium shadow-md"
       >
-        📎 Seleccionar archivos locales
+        📎 Seleccionar archivos
       </button>
     </>
   );

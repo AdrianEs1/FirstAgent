@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Plus, Search, MoreVertical, Archive, Trash2 } from 'lucide-react';
 
 function Sidebar({ 
@@ -15,6 +15,23 @@ function Sidebar({
   const filteredConversations = conversations.filter((conv) =>
     (conv.title || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const botonRef = useRef(null)
+
+
+  useEffect(() => {
+      function handleClickOutside(event) {
+        if (botonRef.current && !botonRef.current.contains(event.target)) {
+          setOpenMenuId(null); // cerrar botón
+        }
+      }
+
+      document.addEventListener("mousedown", handleClickOutside);
+
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }, []);
   
 
 
@@ -136,6 +153,7 @@ function Sidebar({
                   {/* Menú contextual */}
                   {openMenuId === conv.id && (
                     <div
+                      ref={botonRef}
                       className="absolute right-2 top-12 w-44 bg-white rounded-xl shadow-lg border z-50"
                       onClick={(e) => e.stopPropagation()}
                     >

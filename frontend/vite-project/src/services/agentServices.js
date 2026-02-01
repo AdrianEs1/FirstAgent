@@ -213,13 +213,22 @@ export const connectOAuth = async (service = "gmail") => {
     // Esperar mensaje del callback OAuth
     return new Promise((resolve, reject) => {
       const handleMessage = (event) => {
-        // ⚠️ Seguridad: valida el origen
-        if (event.origin !== window.location.origin) return;
+        // ✅ Validar contra el origen de tu BACKEND
+        const allowedOrigins = [
+          'http://localhost:5000',     // Backend local
+          'https://tu-backend.com',    // Backend producción (cuando despliegues)
+        ];
+        
+        if (!allowedOrigins.includes(event.origin)) {
+          console.log('⚠️ Origen no permitido:', event.origin);
+          return;
+        }
+        
         if (event.data.app !== service) return;
-
+        
         window.removeEventListener("message", handleMessage);
         popup.close();
-
+        
         if (event.data.status === "success") {
           resolve({
             connected: true,
@@ -231,7 +240,6 @@ export const connectOAuth = async (service = "gmail") => {
           reject(new Error(event.data.message || "Error de autenticación"));
         }
       };
-
       window.addEventListener("message", handleMessage);
     });
   } catch (error) {

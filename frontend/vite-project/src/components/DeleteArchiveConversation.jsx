@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   fetchAgentDeleteConversation,
 } from "../services/agentServices";
@@ -14,6 +14,7 @@ function DeleteArchiveConversation({
 
   const isDelete = action === "delete"
   const [success, setSuccess] = useState("");
+  
 
 
   const handleConfirm = async () => {
@@ -75,7 +76,7 @@ function DeleteArchiveConversation({
         )}
 
 
-        <div className="flex gap-3">
+        <div  className="flex gap-3">
           <button
             onClick={onClose}
             disabled={loading}

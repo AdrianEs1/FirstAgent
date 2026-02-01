@@ -7,9 +7,6 @@ import Sidebar from "../components/Sidebar";
 import ChatArea from "../components/ChatArea";
 import NotificationDeleteAccount from "../components/NotificationDeleteAccount";
 import DeleteArchiveConversation from "../components/DeleteArchiveConversation";
-import LocalFilePickerButton from "../components/LocalFilePickerButton"
-import { fetchAgentSendFiles} from "../services/agentServices";
-
 
 import {
   fetchConversations,
@@ -23,7 +20,6 @@ import { Menu, X, Send } from "lucide-react";
 function AgentPage() {
   const { user } = useAuth();
 
-  
 
   // Hook de WebSocket
   const { 
@@ -53,8 +49,6 @@ function AgentPage() {
   });
 
   
-
-
   // ✅ Cargar conversaciones al inicio
   useEffect(() => {
     loadConversations();
@@ -175,7 +169,7 @@ function AgentPage() {
 
   // ✅ Verificar estado de OAuth al cargar
   const checkOAuthStatus = async () => {
-    const services = ["gmail", "drive", "calendar"];
+    const services = ["gmail"];
     try {
       const statuses = await Promise.all(
         services.map((s) => getOAuthStatus(s).catch(() => ({ connected: false })))
@@ -195,29 +189,52 @@ function AgentPage() {
   // ✅ Conexión/desconexión unificada (con popup incluido en connectOAuth)
   const handleConnectApp = async (appId) => {
     const isConnected = connectedApps[appId];
+    
+    console.log('🔵 handleConnectApp iniciado para:', appId);
+    console.log('🔵 Estado actual conectado:', isConnected);
 
     if (isConnected) {
-      // 🔌 Desconectar app
       try {
         await disconnectOAuth(appId);
-        setConnectedApps((prev) => ({ ...prev, [appId]: false }));
+        await checkOAuthStatus();
         alert(`${appId} desconectado exitosamente`);
       } catch (error) {
         console.error(`Error desconectando ${appId}:`, error);
         alert(`Error al desconectar ${appId}`);
       }
     } else {
-      // 🔗 Conectar app (popup manejado desde connectOAuth)
       try {
+        console.log('🟢 Iniciando connectOAuth...');
         const result = await connectOAuth(appId);
-        setConnectedApps((prev) => ({ ...prev, [appId]: true }));
-        alert(`${appId} conectado exitosamente (${result.email || "sin correo"})`);
+
+        // Esperar un momento para que el usuario autorice
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Verificar el estado real
+        await checkOAuthStatus();
+        console.log('🟢 connectOAuth completado:', result);
+        
+        // ✅ Actualizar inmediatamente si la conexión fue exitosa
+        if (result?.connected) {
+          console.log('🟢 Actualizando estado a conectado');
+          setConnectedApps(prev => ({ ...prev, [appId]: true }));
+        }
+        
+        console.log('🟢 Llamando a checkOAuthStatus...');
+        await checkOAuthStatus();
+        console.log('🟢 checkOAuthStatus completado');
+
+        alert(`${appId} conectado exitosamente${result?.email ? ` como ${result.email}` : ""}`);
       } catch (error) {
-        console.error(`Error conectando ${appId}:`, error);
+        console.error(`❌ Error conectando ${appId}:`, error);
         alert(`Error al conectar ${appId}`);
+        
+        // Intentar sincronizar incluso si hay error
+        await checkOAuthStatus();
       }
     }
   };
+
 
 
   // ✅ Enviar mensaje (crea conversación automáticamente si no existe)
@@ -284,33 +301,6 @@ function AgentPage() {
   };
 
 
-
-  const handleFilesSelected = async (files) => {
-    if (!activeConversationId) return;
-
-    const formData = new FormData();
-    formData.append("conversation_id", activeConversationId);
-
-    files.forEach(file => {
-      formData.append("files", file);
-    });
-
-    try {
-      const res = await fetchAgentSendFiles(formData);
-      console.log("📎 Respuesta backend:", res);
-    } catch (error) {
-      console.error(
-        error?.response?.data?.detail || "Se produjo un error al enviar los archivos"
-      );
-      alert("Se produjo un error al enviar los archivos");
-    }
-  };
-
-
-
-
-
-
   const activeConversations = conversations.filter(
     (c) => c.status !== "archived"
   );
@@ -352,6 +342,7 @@ function AgentPage() {
   return (
     <div className="flex flex-col h-screen bg-gray-50">
     {/* HEADER */}
+
       <Header onConnectApp={handleConnectApp} connectedApps={connectedApps} onDeleteAccount={() => setShowDeleteAccountModal(true)}/>
     
     {/* CONTENEDOR PRINCIPAL */}
@@ -433,9 +424,6 @@ function AgentPage() {
           className="border-t border-gray-200 p-4 bg-gray-50"
         >
           <div className="max-w-4xl mx-auto flex items-center gap-3">
-
-            <LocalFilePickerButton enabled={true}
-              onFilesSelected={handleFilesSelected} />
             
             <textarea
               ref={textareaRef}
