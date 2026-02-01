@@ -214,12 +214,11 @@ export const connectOAuth = async (service = "gmail") => {
     return new Promise((resolve, reject) => {
       const handleMessage = (event) => {
         // ✅ Validar contra el origen de tu BACKEND
-        const allowedOrigins = [
-          'http://localhost:5000',     // Backend local
-          'https://tu-backend.com',    // Backend producción (cuando despliegues)
-        ];
+        const allowedOrigins = import.meta.env.VITE_URL
+
+        console.log(`VITE_URL:${allowedOrigins}, Event Origin: ${event.origin}`)
         
-        if (!allowedOrigins.includes(event.origin)) {
+        if (allowedOrigins !== event.origin) {
           console.log('⚠️ Origen no permitido:', event.origin);
           return;
         }

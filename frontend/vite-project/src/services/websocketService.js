@@ -46,10 +46,12 @@ class WebSocketService {
 
     try {
       const token = await getValidAccessToken();
+      const URL_LOC = import.meta.env.VITE_API_URL_WS_LOC
+      const URL_PROD = import.meta.env.VITE_API_URL_WS_PROD
 
       const wsUrl = import.meta.env.DEV
-        ? `ws://localhost:5000/ws?token=${token}&sessionId=${this.sessionId}` // ← Agregar sessionId
-        : `wss://assistwork-backend-273334954418.us-central1.run.app/ws?token=${token}&sessionId=${this.sessionId}`; // ← Agregar sessionId
+        ? `ws://${URL_LOC}/ws?token=${token}&sessionId=${this.sessionId}` // ← Agregar sessionId
+        : `wss://${URL_PROD}/ws?token=${token}&sessionId=${this.sessionId}`; // ← Agregar sessionId
 
       console.log("🔌 Conectando WebSocket...");
 
