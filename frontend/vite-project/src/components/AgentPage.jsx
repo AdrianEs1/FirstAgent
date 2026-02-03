@@ -340,7 +340,7 @@ function AgentPage() {
   
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
     {/* HEADER */}
 
       <Header onConnectApp={handleConnectApp} connectedApps={connectedApps} onDeleteAccount={() => setShowDeleteAccountModal(true)}/>
@@ -348,10 +348,11 @@ function AgentPage() {
     {/* CONTENEDOR PRINCIPAL */}
     <div className="flex flex-1 overflow-hidden relative">
       
-      {/* Sidebar toggle (mobile) */}
+      {/* Sidebar toggle (mobile) - Ajustado para evitar superposiciones */}
       <button
         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        className="absolute top-4 left-4 md:hidden z-30 bg-white p-2 rounded-lg shadow hover:bg-gray-100"
+        className="absolute top-4 left-4 md:hidden z-30 bg-white p-2 rounded-lg shadow-md hover:bg-gray-100 transition-all"
+        aria-label={isSidebarOpen ? "Cerrar menú" : "Abrir menú"}
       >
         {isSidebarOpen ? <X size={22} /> : <Menu size={22} />}
       </button>
@@ -364,11 +365,11 @@ function AgentPage() {
         />
       )}
       
-      {/* ✅ SIDEBAR con scroll propio y posición fija */}
+      {/* ✅ SIDEBAR mejorado con mejor manejo responsive */}
       <aside
         className={`${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 transition-transform duration-300 md:w-80 w-64 bg-white shadow-lg z-50 flex-shrink-0 fixed md:static top-0 left-0 h-full overflow-y-auto`}
+        } md:translate-x-0 transition-transform duration-300 ease-in-out md:w-80 w-64 bg-white shadow-lg z-50 flex-shrink-0 fixed md:relative top-0 left-0 h-full md:h-auto overflow-y-auto`}
       >
         <Sidebar
           conversations={showArchived ? archivedConversations : activeConversations}
@@ -379,20 +380,18 @@ function AgentPage() {
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
         />
-
-
-
       </aside>
       
-      {/* ✅ ÁREA DE CHAT con scroll independiente */}
-      <div className="flex flex-col flex-1 bg-white rounded-tl-2xl shadow-inner overflow-hidden">
-        <div className="flex-1 overflow-y-auto">
+      {/* ✅ ÁREA DE CHAT con scroll independiente y padding responsive mejorado */}
+      <div className="flex flex-col flex-1 bg-white md:rounded-tl-2xl shadow-inner overflow-hidden w-full md:w-auto">
+        {/* Contenedor de mensajes con padding superior en mobile para el botón toggle */}
+        <div className="flex-1 overflow-y-auto pt-16 md:pt-0 px-2 md:px-4">
           {!activeConversationId && messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center text-gray-500 p-8 h-full">
-              <h2 className="text-2xl font-bold mb-2">
+            <div className="flex flex-col items-center justify-center text-gray-500 p-4 md:p-8 h-full">
+              <h2 className="text-xl md:text-2xl font-bold mb-2 text-center">
                 Bienvenido, {user?.name || user?.email}
               </h2>
-              <p className="text-center mb-6">
+              <p className="text-center mb-6 text-sm md:text-base px-4">
                 Escribe un mensaje para empezar una nueva conversación
               </p>
             </div>
@@ -402,7 +401,7 @@ function AgentPage() {
             <ChatArea messages={messages} loading={false} />
             {loading && currentEvent && <EventIndicator event={currentEvent} />}
             {loading && !currentEvent && (
-              <div className="flex justify-start p-6">
+              <div className="flex justify-start p-4 md:p-6">
                 <div className="bg-gray-100 rounded-2xl px-4 py-3">
                   <div className="flex gap-2">
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
@@ -417,13 +416,13 @@ function AgentPage() {
         </div>
         
         
-        {/* INPUT AREA */}
+        {/* INPUT AREA - Mejorado con padding responsive */}
         
         <form
           onSubmit={handleSendMessage}
-          className="border-t border-gray-200 p-4 bg-gray-50"
+          className="border-t border-gray-200 p-3 md:p-4 bg-gray-50 flex-shrink-0"
         >
-          <div className="max-w-4xl mx-auto flex items-center gap-3">
+          <div className="max-w-4xl mx-auto flex items-center gap-2 md:gap-3 w-full">
             
             <textarea
               ref={textareaRef}
@@ -437,7 +436,7 @@ function AgentPage() {
               }}
               placeholder="Escribe tu mensaje..."
               rows={1}
-              className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none resize-none overflow-y-auto"
+              className="flex-1 border border-gray-300 rounded-lg px-3 md:px-4 py-2 focus:ring-2 focus:ring-cyan-500 focus:outline-none resize-none overflow-y-auto text-sm md:text-base"
               style={{
                 minHeight: '42px',
                 maxHeight: '200px',
@@ -446,7 +445,8 @@ function AgentPage() {
             <button
               type="submit"
               disabled={loading || !newMessage.trim()}
-              className="bg-cyan-600 text-white p-2 rounded-lg hover:bg-cyan-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-cyan-600 text-white p-2 md:p-2.5 rounded-lg hover:bg-cyan-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              aria-label="Enviar mensaje"
             >
               <Send size={20} />
             </button>
@@ -455,12 +455,14 @@ function AgentPage() {
       </div>
     </div>
 
+    {/* Modal de eliminar cuenta - Mejorado con mejor padding mobile */}
     {showDeleteAccountModal && (
       <div className="fixed inset-0 flex justify-center items-center bg-black/50 z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative mx-4">
             <button
               onClick={() => setShowDeleteAccountModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
+              aria-label="Cerrar modal"
             >
               <X size={24} />
             </button>
@@ -472,12 +474,14 @@ function AgentPage() {
     
     )}
 
+    {/* Modal de conversación - Mejorado con mejor padding mobile */}
     {conversationModal && (
       <div className="fixed inset-0 flex justify-center items-center bg-black/50 z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative mx-4">
           <button
             onClick={() => setConversationModal(null)}
             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
+            aria-label="Cerrar modal"
           >
             <X size={24} />
           </button>
@@ -512,9 +516,6 @@ function AgentPage() {
         </div>
       </div>
     )}
-
-
-
 
   </div>
 

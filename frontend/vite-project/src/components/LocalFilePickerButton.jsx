@@ -36,15 +36,18 @@ export default function LocalFilePickerButton({
         accept={accept}
         onChange={handleFileChange}
       />
-
       <button
         type="button"
         onClick={openFilePicker}
         disabled={!enabled}
-        className="w-full flex items-center justify-center gap-2 bg-cyan-600 text-white px-4 py-3 rounded-lg hover:bg-cyan-700 transition font-medium shadow-md"
+        className="flex items-center justify-center gap-1 sm:gap-2 bg-cyan-600 text-white px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-cyan-700 transition font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+        aria-label="Seleccionar archivos"
       >
-        📎 Seleccionar archivos
+        <span className="text-base sm:text-lg">📎</span>
+        <span className="hidden sm:inline">Archivos</span>
+        <span className="sm:hidden">Files</span>
       </button>
     </>
   );
 }
+
