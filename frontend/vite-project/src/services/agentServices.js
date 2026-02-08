@@ -1,4 +1,4 @@
-import {api, apipublic} from './api';
+import api, {apipublic} from './api';
 
 //Función para RegistrarUsuario
 export const fetchAgentRegister = async (data) => {
