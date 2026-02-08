@@ -1,4 +1,4 @@
-import api from './api';
+import {api, apipublic} from './api';
 
 //Función para RegistrarUsuario
 export const fetchAgentRegister = async (data) => {
@@ -278,7 +278,7 @@ export const disconnectOAuth = async (service = 'gmail') => {
 
 export const fetchAgentForgotPassword = async (data) => {
   try {
-    const response = await api.post(`/api/auth/forgot-password`, data);
+    const response = await apipublic.post(`/api/auth/forgot-password`, data);
     return response.data; 
   } catch (error) {
     const errorMessage = error.response?.data?.message || "Ocurrió un error desconocido.";

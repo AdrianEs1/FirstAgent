@@ -7,17 +7,14 @@ const VITE_API_URL= import.meta.env.VITE_API_URL
 // Crear instancia de axios con configuración correcta
 const api = axios.create({
   baseURL: VITE_API_URL, // 👈 
-  //headers: {
-    //'Content-Type': 'application/json',
-  //},
   withCredentials: true  // 👈 cross-origin)
 });
 
-
+const apipublic = axios.create({
+  baseURL:VITE_API_URL,
+});
 
 const PUBLIC_ROUTES = [
-  "/api/auth/login",
-  "/api/auth/register",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
 ];
@@ -139,4 +136,5 @@ api.interceptors.response.use(
 
 
 export default api;
-export { refreshAccessToken };
+//export apipublic;
+export { apipublic, refreshAccessToken };
