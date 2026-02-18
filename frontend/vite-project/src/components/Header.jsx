@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import LocalFilePickerButton from "../components/LocalFilePickerButton";
 import { fetchAgentSendFiles } from "../services/agentServices";
+//import { useNavigate } from "react-router-dom";
 
 function Header({ onConnectApp, connectedApps, onDeleteAccount }) {
   const { user, logout } = useAuth();
@@ -176,7 +177,12 @@ function Header({ onConnectApp, connectedApps, onDeleteAccount }) {
                     <span>Perfil</span>
                   </button>
 
-                  <button className="w-full flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition text-left text-sm sm:text-base">
+                  <button 
+                    onClick={() => {
+                    navigate("/settings");
+                    setShowUserDropdown(false);
+                  }}
+                    className="w-full flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition text-left text-sm sm:text-base">
                     <Settings size={16} className="sm:w-[18px] sm:h-[18px] flex-shrink-0" />
                     <span>Configuración</span>
                   </button>

@@ -8,6 +8,8 @@ import RegisterCard from './components/Register';
 import ResetPassword from './components/ResetPassword';
 import ForgotPassword from './components/ForgotPassword';
 import ConfirmDeleteAccount from './components/ConfirmDeleteAccount';
+import Pricing from './components/Pricing';
+import Settings from './components/Settings';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
 
@@ -46,12 +48,26 @@ function App() {
         element={!isAuthenticated ? <RegisterCard /> : <Navigate to="/agentPage" />}
       />
 
+      <Route
+        path="/pricing"
+        element={<Pricing />}
+      />
+
       {/* Privada */}
       <Route
         path="/agentPage"
         element={
           <ProtectedRoute>
             <AgentPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
           </ProtectedRoute>
         }
       />

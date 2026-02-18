@@ -132,7 +132,7 @@ export const fetchConversationById = async (conversationId) => {
 };
 
 
-////TERMINAR DE CONSTRUIR LA FUNCION PARA ENVIAR FILES ID AL BACKEND
+////FUNCION PARA ENVIAR FILES ID AL BACKEND
 
 export const fetchAgentSendFiles = async (files) => {
   try{

@@ -144,7 +144,7 @@ function Home() {
 
       {/* FOOTER */}
       <footer className="bg-cyan-600 text-white py-4 text-center text-sm">
-        © 2025 AssistanWork. Todos los derechos reservados. |{" "}
+        © 2025 AssistWork. Todos los derechos reservados. |{" "}
         <a href="/privacy">Privacy Policy</a> |{" "}
         <a href="/terms">Terms of Service</a>
       </footer>
