@@ -24,7 +24,13 @@ function Home() {
       {/* NAVBAR */}
       <header className="w-full bg-white/80 backdrop-blur-md shadow z-50">
         <nav className="flex justify-between items-center max-w-7xl mx-auto px-4 py-3">
-          <h1 className="text-xl font-bold text-cyan-600">AssistWork</h1>
+          <h1
+            onClick={() => navigate("/agentPage")}
+            className="text-lg sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent flex-shrink-0 cursor-pointer"
+          >
+            AssistWork
+          </h1>
+  
 
           {/* Links desktop */}
           <div className="hidden md:flex gap-6">
