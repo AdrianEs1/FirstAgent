@@ -12,6 +12,7 @@ import Pricing from './components/Pricing';
 import Settings from './components/Settings';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsOfService from './components/TermsOfService';
+import RefundPolicy from './components/RefundPolicy';
 
 function App() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -36,6 +37,7 @@ function App() {
       <Route path="/delete-account" element={<ConfirmDeleteAccount/>}/>
       <Route path='/privacy' element={<PrivacyPolicy/>}/>
       <Route path='/terms' element={<TermsOfService/>}/>
+      <Route path='/refund' element={<RefundPolicy/>}/>
 
 
       {/* Auth */}

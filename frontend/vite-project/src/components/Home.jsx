@@ -146,7 +146,8 @@ function Home() {
       <footer className="bg-cyan-600 text-white py-4 text-center text-sm">
         © 2025 AssistWork. Todos los derechos reservados. |{" "}
         <a href="/privacy">Privacy Policy</a> |{" "}
-        <a href="/terms">Terms of Service</a>
+        <a href="/terms">Terms of Service</a> |{" "}
+        <a href="/refund">Refund Policy</a>
       </footer>
 
       
