@@ -69,10 +69,10 @@ const RefundPolicy = () => {
             <section>
               <h2 className="text-xl font-bold text-slate-900 mb-4">3. Refund Policy</h2>
               <p>
-                We offer a <strong>full refund within the first 7 days</strong> from the date of the first charge. If you are not satisfied with AssistWork Pro for any reason, contact us within that period and we will process your refund — no questions asked.
+                We offer a <strong>full refund within the first 14 days</strong> from the date of the first charge. If you are not satisfied with AssistWork Pro for any reason, contact us within that period and we will process your refund — no questions asked.
               </p>
               <p className="mt-4 font-medium text-slate-800">
-                After the 7-day refund window, no refunds will be issued for the current billing period.
+                After the 14-day refund window, no refunds will be issued for the current billing period.
               </p>
             </section>
 
@@ -122,7 +122,7 @@ const RefundPolicy = () => {
               <section>
                 <h2 className="text-xl font-bold text-slate-900 mb-4">6. Non-Eligible Cases</h2>
                 <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">❌ Requests after the 7-day window</li>
+                  <li className="flex items-center gap-2">❌ Requests after the 14-day window</li>
                   <li className="flex items-center gap-2">❌ Accounts that violated our Terms of Service</li>
                   <li className="flex items-center gap-2">❌ Free trial periods (no charge occurred)</li>
                 </ul>

@@ -121,7 +121,7 @@ export const fetchConversations = async () => {
 
 export const fetchConversationById = async (conversationId) => {
   try{
-    const response = await api.get(`/api/conversations/${conversationId}`, conversationId, { withCredentials: true});
+    const response = await api.get(`/api/conversations/${conversationId}`,{ withCredentials: true});
 
     return response.data;
   
@@ -132,7 +132,7 @@ export const fetchConversationById = async (conversationId) => {
 };
 
 
-////FUNCION PARA ENVIAR FILES ID AL BACKEND
+////FUNCION PARA ENVIAR FILES AL BACKEND
 
 export const fetchAgentSendFiles = async (files) => {
   try{
@@ -145,12 +145,36 @@ export const fetchAgentSendFiles = async (files) => {
   }
 };
 
+// Funcion que permite Obtener los Archivos del contexto del usuario
+export const fetchAgentGetFiles = async () =>{
+  try { 
+    const response = await api.get('/api/agent/context/uploaded-files', {withCredentials: true});
+
+    return response.data;
+    
+  } catch (error) {
+    throw error;
+    
+  }
+}
+
+// Funcion que permite eliminar Archivos del contexto del usuario
+export const fetchAgentDeleteFiles = async (file_id) =>{
+  try {
+    const response = await api.delete(`/api/agent/context/delete-file/${file_id}`, {withCredentials: true});
+
+    return response.data
+    
+  } catch (error) {
+    throw error;
+  }
+}
 
 
 //Funcion para buscar conversaciones por el titulo
 export const seachConversation = async (conversationTitle) => {
   try{
-    const response = await api.get(`/api/conversations/search/${conversationTitle}`, data, { withCredentials: true});
+    const response = await api.get(`/api/conversations/search/${conversationTitle}`,{ withCredentials: true});
 
     return response.data;
     

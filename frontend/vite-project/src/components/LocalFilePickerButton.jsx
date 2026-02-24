@@ -40,7 +40,7 @@ export default function LocalFilePickerButton({
         type="button"
         onClick={openFilePicker}
         disabled={!enabled}
-        className="flex items-center justify-center gap-1 sm:gap-2 bg-cyan-600 text-white px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-cyan-700 transition font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
+        className="w-full flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition text-left text-sm sm:text-base"
         aria-label="Seleccionar archivos"
       >
         <span className="text-base sm:text-lg">📎</span>
