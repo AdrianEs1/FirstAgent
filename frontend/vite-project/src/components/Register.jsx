@@ -1,19 +1,18 @@
 import { useState } from "react";
 import { fetchAgentRegister, fetchAgentVerifyEmailCode } from "../services/agentServices";
+import { validateEmail } from "../services/validInput";
+import { useFormFields, MAX_EMAIL_LENGTH } from "../hooks/useFormFields";
 
 import PasswordInput from "./PasswordInput";
+import {X} from "lucide-react";
 
-function RegisterCard({ onSwitchToLogin }) {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [name, setName] = useState("");
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
-    const [success, setSuccess] = useState(false);
-    const [step, setStep] = useState("register"); 
-    // "register" | "verify" | "success"
-
-    const [code, setCode] = useState("");
+function RegisterCard({ onSwitchToLogin, onClose}) {
+    const [name, setName] = useState(""); 
+    const {
+    email, password, code, error, loading, step, fieldErrors,
+    setCode, setError, setLoading, setStep,
+    handleEmailChange, handleEmailBlur, handlePasswordChange, handleCodeChange,
+    } = useFormFields("register");
 
 
     const handleSubmit = async (e) => {
@@ -21,29 +20,30 @@ function RegisterCard({ onSwitchToLogin }) {
         setError("");
         setLoading(true);
 
-        if (!email || !password || !name) {
-            setError("Todos los campos son obligatorios");
-            setLoading(false);
+        // 1. Sanitización y Validaciones previas
+        const cleanEmail = email.trim();
+        if (!cleanEmail || !password || !name) {
+            setError("Por favor, completa todos los campos.");
             return;
         }
 
-        if (password.length < 8) {
-            setError("La contraseña debe tener al menos 8 caracteres");
-            setLoading(false);
+        if (!validateEmail(cleanEmail)) {
+            setError("El formato del correo electrónico no es válido.");
             return;
         }
+
+        if (password.length < 6) {
+            setError("La contraseña debe tener al menos 6 caracteres.");
+            return;
+        }
+
+        setLoading(true);
 
         try {
             await fetchAgentRegister({ email, password, name });
             setStep("verify");
             setLoading(false);
-            {/*setSuccess(true);
             
-            setTimeout(() => {
-                if (onSwitchToLogin) {
-                    onSwitchToLogin();
-                }
-            }, 2000);*/}
 
         } catch (err) {
             console.error("Error en el registro");
@@ -101,7 +101,7 @@ function RegisterCard({ onSwitchToLogin }) {
                 <input
                 type="text"
                 value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                onChange={handleCodeChange}
                 maxLength={6}
                 placeholder="Código de verificación"
                 className="w-full text-center tracking-widest text-xl border rounded-lg py-3 px-4 focus:ring-2 focus:ring-cyan-500"
@@ -137,7 +137,21 @@ function RegisterCard({ onSwitchToLogin }) {
     }
 
     return (
-        <div className="bg-cyan-50 p-6 rounded-xl shadow-xl max-w-sm mx-auto w-full">
+        <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm mx-auto w-full border border-gray-100">
+
+            {onClose && (
+                <div className="flex justify-end mb-2">
+                    <button
+                    onClick={onClose}
+                    className="top-5 right-5 text-slate-400 hover:text-slate-600 transition-colors p-1 hover:bg-slate-100 rounded-full"
+                    >
+                        <X size={20} />
+                    </button>
+
+                </div>
+                
+            )}
+
             <h2 className="text-2xl font-bold text-center text-black mb-4 pb-3">Crear Cuenta</h2>
             
             <form onSubmit={handleSubmit}>
@@ -152,7 +166,11 @@ function RegisterCard({ onSwitchToLogin }) {
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="w-full border rounded-lg py-2 px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        className={`w-full border-2 rounded-xl py-3 px-4 outline-none transition-all ${
+                            fieldErrors.name 
+                            ? "border-red-300 bg-red-50 focus:ring-red-500" 
+                            : "border-gray-100 bg-gray-50 focus:ring-cyan-500"
+                        }`}
                         placeholder="nombre completo"
                         disabled={loading}
                     />
@@ -162,20 +180,41 @@ function RegisterCard({ onSwitchToLogin }) {
                     <input 
                         type="email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full border rounded-lg py-2 px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                        placeholder="correo electrónico"
+                        onChange={handleEmailChange}
+                        onBlur={handleEmailBlur}
+                        maxLength={MAX_EMAIL_LENGTH + 1} // Dejamos +1 para que el onChange detecte el intento de exceso y dispare la alerta
+                        className={`w-full border-2 rounded-xl py-3 px-4 outline-none transition-all ${
+                            fieldErrors.email 
+                            ? "border-red-300 bg-red-50 focus:ring-red-500" 
+                            : "border-gray-100 bg-gray-50 focus:ring-cyan-500"
+                        }`}
+                        placeholder="ejemplo@correo.com"
                         disabled={loading}
                     />
+                    {fieldErrors.email && (
+                        <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 uppercase tracking-wider">
+                            {fieldErrors.email}
+                        </p>
+                    )}
                 </div>
 
                 <div className="pb-2 flex justify-center">
                     <PasswordInput
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={handlePasswordChange}
                         placeholder="contraseña"
                         disabled={loading}
+                        className={`w-full border-2 rounded-xl py-3 px-4 outline-none transition-all ${
+                            fieldErrors.password 
+                            ? "border-red-300 bg-red-50 focus:ring-red-500" 
+                            : "border-gray-100 bg-gray-50 focus:ring-cyan-500"
+                        }`}
                     />
+                    {fieldErrors.password && (
+                        <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 uppercase tracking-wider">
+                            {fieldErrors.password}
+                        </p>
+                    )}
                 </div>
 
                 <div className="pt-4">

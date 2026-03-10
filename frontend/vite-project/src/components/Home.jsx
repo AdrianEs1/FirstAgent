@@ -306,40 +306,28 @@ function Home() {
         {/* ── MODAL LOGIN ─────────────────────────────────────────────────── */}
         {showLoginModal && (
           <div className="fixed inset-0 flex justify-center items-center bg-black/55 backdrop-blur-sm z-50 p-4">
-            <div className="bg-cyan-50 rounded-2xl shadow-2xl w-full max-w-md relative">
-              <button
-                onClick={() => setShowLoginModal(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10 transition"
-              >
-                <X size={22} />
-              </button>
-              <LoginCard
-                onSwitchToRegister={() => {
-                  setShowLoginModal(false);
-                  setShowRegisterModal(true);
-                }}
-              />
-            </div>
+            <LoginCard
+              onClose={() => setShowLoginModal(false)}
+              onSwitchToRegister={() => {
+                setShowLoginModal(false);
+                setShowRegisterModal(true);
+
+              }}
+
+            />
           </div>
         )}
 
         {/* ── MODAL REGISTER ──────────────────────────────────────────────── */}
         {showRegisterModal && (
           <div className="fixed inset-0 flex justify-center items-center bg-black/55 backdrop-blur-sm z-50 p-4">
-            <div className="bg-cyan-50 rounded-2xl shadow-2xl w-full max-w-md relative">
-              <button
-                onClick={() => setShowRegisterModal(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10 transition"
-              >
-                <X size={22} />
-              </button>
               <RegisterCard
+                onClose={() => setShowRegisterModal(false)}
                 onSwitchToLogin={() => {
                   setShowRegisterModal(false);
                   setShowLoginModal(true);
                 }}
               />
-            </div>
           </div>
         )}
 

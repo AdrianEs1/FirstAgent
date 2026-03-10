@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
-function PasswordInput({ value, onChange, placeholder = "Contraseña" }) {
+function PasswordInput({ value, onChange, placeholder = "Contraseña", className }) {
   const [show, setShow] = useState(false);
 
   return (
@@ -11,7 +11,7 @@ function PasswordInput({ value, onChange, placeholder = "Contraseña" }) {
         value={value}
         onChange={onChange}
         placeholder={placeholder}
-        className="w-full border rounded-lg py-2 px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+        className={className}
       />
 
       <button

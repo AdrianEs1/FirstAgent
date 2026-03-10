@@ -3,80 +3,85 @@ import { useNavigate } from "react-router-dom";
 import { fetchAgentLogin, fetchCurrentUser, fetchAgentVerifyEmailCode, fetchAgentResendEmailCode } from "../services/agentServices";
 import { useAuth } from "../context/AuthContext";
 import PasswordInput from "./PasswordInput";
+import { Link } from "react-router-dom";
+import {X} from "lucide-react";
+import { validateEmail } from "../services/validInput";
+import { useFormFields, MAX_EMAIL_LENGTH } from "../hooks/useFormFields";
 
-function LoginCard({ onSwitchToRegister, onSwitchToForgotPassword }) {  // ✅ Recibe prop
+function LoginCard({ onSwitchToRegister, onClose}) {
     const { login } = useAuth();
-    const [step, setStep] = useState("login");
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [code, setCode] = useState("");
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
+    const [verifiedAccount, setVerifiedAccount] = useState("");
     const navigate = useNavigate();
-    const [verifiedAccount, setVerifiedAccount] = useState("")
-
-
+    const {
+    email, password, code, error, loading, step, fieldErrors,
+    setCode, setError, setLoading, setStep,
+    handleEmailChange, handleEmailBlur, handlePasswordChange, handleCodeChange,
+    } = useFormFields();
+    
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setError("");
-        setLoading(true);
-
-        if (!email || !password) {
-            setError("Todos los campos son obligatorios");
-            setLoading(false);
+        
+        // 1. Sanitización y Validaciones previas
+        const cleanEmail = email.trim();
+        if (!cleanEmail || !password) {
+            setError("Por favor, completa todos los campos.");
             return;
         }
 
+        if (!validateEmail(cleanEmail)) {
+            setError("El formato del correo electrónico no es válido.");
+            return;
+        }
+
+        if (password.length < 6) {
+            setError("La contraseña debe tener al menos 6 caracteres.");
+            return;
+        }
+
+        setLoading(true);
+
         try {
-            const loginData = await fetchAgentLogin({ email, password });
+            const loginData = await fetchAgentLogin({ email: cleanEmail, password });
 
             if (!loginData?.access_token) {
                 throw new Error("Credenciales inválidas");
             }
 
             const userData = await fetchCurrentUser(loginData.access_token);
-
             login(userData);
             setStep("success");
-
             setTimeout(() => navigate("/agentPage"), 1500);
 
         } catch (err) {
             const status = err?.response?.status;
-
             if (status === 403) {
                 setStep("verify");
-                await fetchAgentResendEmailCode({ email });
+                await fetchAgentResendEmailCode({ email: cleanEmail });
             } else {
-                setError(
-                    err?.response?.data?.detail ||
-                    "Email o contraseña incorrectos"
-                );
+                setError(err?.response?.data?.detail || "Email o contraseña incorrectos");
             }
         } finally {
             setLoading(false);
         }
     };
 
-
-
     const handleVerifyCode = async (e) => {
         e.preventDefault();
         setError("");
-        setLoading(true);
 
         if (code.length !== 6) {
-            setError("El código debe tener 6 dígitos");
-            setLoading(false);
+            setError("El código debe ser de 6 dígitos.");
             return;
         }
 
+        setLoading(true);
         try {
-            const response= await fetchAgentVerifyEmailCode({ email, code });
+            const response = await fetchAgentVerifyEmailCode({ email, code });
             setStep("login");
-            setVerifiedAccount(response.message);
-
+            setVerifiedAccount(response.message || "¡Cuenta verificada con éxito!");
+            setCode("");
         } catch {
             setError("Código inválido o expirado");
         } finally {
@@ -84,154 +89,149 @@ function LoginCard({ onSwitchToRegister, onSwitchToForgotPassword }) {  // ✅ R
         }
     };
 
-
-    
-    
+    // --- Sub-componente de Verificación ---
     if (step === "verify") {
         return (
-            <div className="bg-cyan-50 p-6 rounded-xl shadow-xl max-w-sm mx-auto text-center">
-                <h3 className="text-xl font-bold mb-2">Verifica tu correo</h3>
-                <p className="text-gray-600 mb-4 text-sm">
-                    Debes verificar tu cuenta para continuar. Enviamos un código a <b>{email}</b>
+            <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm mx-auto text-center border border-gray-100">
+                <div className="w-16 h-16 bg-cyan-100 text-cyan-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-2">Verifica tu correo</h3>
+                <p className="text-slate-500 mb-6 text-sm">
+                    Código enviado a <span className="font-semibold text-slate-700">{email}</span>
                 </p>
 
-                {error && (
-                    <div className="mb-3 p-2 bg-red-100 text-red-700 rounded text-sm">
-                        {error}
-                    </div>
-                )}
+                {error && <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-xs font-medium">{error}</div>}
 
-                <form onSubmit={handleVerifyCode}>
+                <form onSubmit={handleVerifyCode} className="space-y-4">
                     <input
                         type="text"
                         value={code}
-                        onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                        onChange={handleCodeChange}
                         maxLength={6}
-                        placeholder="Código de verificación"
-                        className="w-full text-center tracking-widest text-xl border rounded-lg py-3"
+                        placeholder="000000"
+                        className="w-full text-center tracking-[0.5em] text-2xl font-mono border-2 border-gray-100 rounded-xl py-3 focus:border-cyan-500 focus:outline-none transition-all"
                     />
-
                     <button
-                        className="mt-4 w-full bg-cyan-600 text-white py-2 rounded-lg"
+                        className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors disabled:opacity-50"
                         disabled={loading}
                     >
-                        {loading ? "Verificando..." : "Verificar cuenta"}
+                        {loading ? "Validando..." : "Verificar ahora"}
                     </button>
                 </form>
             </div>
         );
     }
 
-
-    {/*if (step === "success") {
-        return (
-            <div className="bg-cyan-50 p-6 rounded-xl shadow-xl text-center py-12">
-                <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                    ✔
-                </div>
-                <h3 className="text-xl font-semibold">Login exitoso</h3>
-                <p className="text-gray-600">Redirigiendo...</p>
-            </div>
-        );
-    }*/}
-
-
+    // --- Render Principal ---
     return (
-        <div className="bg-cyan-50 p-6 rounded-xl shadow-xl max-w-sm mx-auto w-full">
-            <h2 className="text-2xl font-bold text-center text-black mb-4 pb-3">Login</h2>
+        <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm mx-auto w-full border border-gray-100">
 
             
-            <form onSubmit={handleLogin}>
+            {onClose && (
+                <div className="flex justify-end mb-2">
+                    <button
+                    onClick={onClose}
+                    className="top-5 right-5 text-slate-400 hover:text-slate-600 transition-colors p-1 hover:bg-slate-100 rounded-full"
+                    >
+                        <X size={20} />
+                    </button>
+
+                </div>
+                
+            )}
+        
+                
+            <header className="text-center mb-8">
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Bienvenido</h2>
+                <p className="text-slate-500 text-sm mt-2">Ingresa tus credenciales para continuar</p>
+            </header>
+
+            <form onSubmit={handleLogin} className="space-y-4">
                 {error && (
-                    <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+                    <div className="p-3 bg-red-50 border-l-4 border-red-500 text-red-700 rounded text-xs font-medium animate-pulse">
                         {error}
                     </div>
                 )}
 
                 {verifiedAccount && (
-
-                    <div className="mb-4 p-3 bg-green-100 border border-green-400 text-black-700 rounded-lg text-sm"> {verifiedAccount} </div>
-
+                    <div className="p-3 bg-green-50 border-l-4 border-green-500 text-green-800 rounded text-xs font-medium">
+                        {verifiedAccount}
+                    </div>
                 )}
 
-
-                <div className="pb-2 flex justify-center">
+                <div>
                     <input 
                         type="email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full border rounded-lg py-2 px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                        placeholder="correo electrónico"
+                        onChange={handleEmailChange}
+                        onBlur={handleEmailBlur}
+                        maxLength={MAX_EMAIL_LENGTH + 1} // Dejamos +1 para que el onChange detecte el intento de exceso y dispare la alerta
+                        className={`w-full border-2 rounded-xl py-3 px-4 outline-none transition-all ${
+                            fieldErrors.email 
+                            ? "border-red-300 bg-red-50 focus:ring-red-500" 
+                            : "border-gray-100 bg-gray-50 focus:ring-cyan-500"
+                        }`}
+                        placeholder="ejemplo@correo.com"
                         disabled={loading}
                     />
+                    {fieldErrors.email && (
+                        <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 uppercase tracking-wider">
+                            {fieldErrors.email}
+                        </p>
+                    )}
                 </div>
 
-                <div className="pb-2 flex justify-center">
-                    
-
+                <div>
                     <PasswordInput
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="contraseña"
+                        onChange={handlePasswordChange}
+                        placeholder="Contraseña"
                         disabled={loading}
+                        className={`w-full border-2 rounded-xl py-3 px-4 outline-none transition-all ${
+                            fieldErrors.email 
+                            ? "border-red-300 bg-red-50 focus:ring-red-500" 
+                            : "border-gray-100 bg-gray-50 focus:ring-cyan-500"
+                        }`}
                     />
-
+                    {fieldErrors.password && (
+                        <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 uppercase tracking-wider">
+                            {fieldErrors.password}
+                        </p>
+                    )}
                 </div>
 
-                <div className="pt-4">
+                <div className="pt-2">
                     <button 
-                        className={`bg-cyan-500 shadow-lg shadow-cyan-500/50 text-white font-bold px-4 py-2 rounded-md hover:bg-cyan-600 w-full flex items-center justify-center ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                        className={`group relative w-full bg-cyan-600 text-white font-bold py-3 rounded-xl transition-all duration-300 hover:bg-cyan-700 hover:shadow-lg hover:shadow-cyan-200 flex items-center justify-center ${loading ? 'opacity-70 cursor-wait' : ''}`}
                         type="submit"
                         disabled={loading}
                     >
                         {loading ? (
-                            <>
-                                <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Ingresando...
-                            </>
-                        ) : (
-                            'Iniciar Sesión'
-                        )}
+                            <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        ) : 'Iniciar Sesión'}
                     </button>
                 </div>
             </form>
 
-            <div className="pt-3 flex-row text-center text-gray-700">
-                <p>¿No tienes cuenta?{' '}
-                    {onSwitchToRegister ? (
-                        <button 
-                            onClick={onSwitchToRegister}
-                            className="text-cyan-600 hover:underline font-semibold"
-                        >
-                            Regístrate
-                        </button>
-                    ) : (
-                        <a href="/register" className="text-cyan-600 hover:underline font-semibold">
-                            Regístrate
-                        </a>
-                    )}
+            <footer className="mt-8 space-y-3 text-center">
+                <p className="text-sm text-slate-500">
+                    ¿No tienes cuenta?{' '}
+                    <button onClick={onSwitchToRegister} className="text-cyan-600 hover:text-cyan-700 font-bold transition-colors">
+                        Regístrate
+                    </button>
                 </p>
-                <p>¿Olvido su Contraseña?{' '}
-                    {onSwitchToForgotPassword ? (
-                        <button 
-                            onClick={onSwitchToForgotPassword}
-                            className="text-cyan-600 hover:underline font-semibold"
-                        >
-                            Recuperar Cuenta
-                        </button>
-                    ) : (
-                        <a href="/forgotpassword" className="text-cyan-600 hover:underline font-semibold">
-                            Recuperar Cuenta
-                        </a>
-                    )}
-                </p>
-            </div>
+                <Link to="/forgotpassword" className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+                    ¿Olvidaste tu contraseña?
+                </Link>
+            </footer>
         </div>
     );
 }
 
 export default LoginCard;
-
