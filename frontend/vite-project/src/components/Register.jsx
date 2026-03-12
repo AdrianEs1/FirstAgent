@@ -243,7 +243,7 @@ function RegisterCard({ onSwitchToLogin, onClose}) {
 
             <div className="pt-3 flex-row text-center text-gray-700">
                 <p>¿Ya tienes cuenta?{' '}
-                    {onSwitchToLogin ? (
+                    {onSwitchToLogin ? ( 
                         <button 
                             onClick={onSwitchToLogin}
                             className="text-cyan-600 hover:underline font-semibold"

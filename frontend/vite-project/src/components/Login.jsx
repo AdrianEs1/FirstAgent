@@ -222,9 +222,18 @@ function LoginCard({ onSwitchToRegister, onClose}) {
             <footer className="mt-8 space-y-3 text-center">
                 <p className="text-sm text-slate-500">
                     ¿No tienes cuenta?{' '}
-                    <button onClick={onSwitchToRegister} className="text-cyan-600 hover:text-cyan-700 font-bold transition-colors">
-                        Regístrate
-                    </button>
+                    {onSwitchToRegister ? ( 
+                        <button 
+                            onClick={onSwitchToRegister}
+                            className="text-cyan-600 hover:underline font-semibold"
+                        >
+                            Registrarse
+                        </button>
+                    ) : (
+                        <a href="/register" className="text-cyan-600 hover:underline font-semibold">
+                            Registrarse
+                        </a>
+                    )}
                 </p>
                 <Link to="/forgotpassword" className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
                     ¿Olvidaste tu contraseña?
