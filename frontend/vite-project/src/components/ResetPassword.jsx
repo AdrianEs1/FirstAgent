@@ -2,14 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchAgentResetPassword } from "../services/agentServices";
 import PasswordInput from "./PasswordInput";
+import { useFormFields } from "../hooks/useFormFields";
 
 function ResetPassword() {
     const navigate = useNavigate();
-
-    const [newpassword, setNewPassword] = useState("");
-    const [error, setError] = useState("");
-    const [loading, setLoading] = useState(false);
     const [response, setResponse] = useState("");
+
+    const {error, setError, loading, setLoading, password, handlePasswordChange, fieldErrors} = useFormFields();
 
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
@@ -25,7 +24,7 @@ function ResetPassword() {
         setError("");
         setLoading(true);
 
-        if (!newpassword) {
+        if (!password) {
             setError("Ingrese su nueva contraseña");
             setLoading(false);
             return;
@@ -34,7 +33,7 @@ function ResetPassword() {
         try {
             const res = await fetchAgentResetPassword({
                 token,
-                new_password: newpassword
+                new_password: password
             });
 
             setResponse(res.message);
@@ -46,7 +45,6 @@ function ResetPassword() {
         } catch (err) {
             setError(
                 err?.response?.data?.detail ||
-                err.message ||
                 "Error al actualizar contraseña"
             );
             setLoading(false);
@@ -56,7 +54,7 @@ function ResetPassword() {
     return (
         <div className="min-h-screen flex items-center justify-center px-4 sm:px-0 ">
             <div className="w-full max-w-sm">
-                <div className="bg-cyan-50 p-6 rounded-xl shadow-xl">
+                <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm mx-auto w-full border border-gray-100">
                     <h2 className="text-2xl font-bold text-center mb-4">
                         Restablecer Contraseña
                     </h2>
@@ -68,13 +66,24 @@ function ResetPassword() {
                             </div>
                         )}
 
-
-                        <PasswordInput
-                            value={newpassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            placeholder="Nueva contraseña"
-                            disabled={loading}
-                        />
+                        <div>
+                            <PasswordInput
+                                value={password}
+                                onChange={handlePasswordChange}
+                                placeholder="Contraseña"
+                                disabled={loading}
+                                className={`w-full border-2 rounded-xl py-3 px-4 outline-none transition-all ${
+                                    fieldErrors.email 
+                                    ? "border-red-300 bg-red-50 focus:ring-red-500" 
+                                    : "border-gray-100 bg-gray-50 focus:ring-cyan-500"
+                                }`}
+                            />
+                            {fieldErrors.password && (
+                                <p className="text-[10px] text-red-500 font-bold mt-1 ml-2 uppercase tracking-wider">
+                                    {fieldErrors.password}
+                                </p>
+                            )}
+                        </div>
 
                         <button
                             className="bg-cyan-500 text-white font-bold px-4 py-2 rounded w-full mt-4"

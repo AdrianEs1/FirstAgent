@@ -316,9 +316,8 @@ export const fetchAgentResetPassword = async (data) => {
   try {
     const response = await api.post(`/api/auth/reset-password`, data);
     return response.data; 
-  } catch (error) {
-    const errorMessage = error.response?.data?.message || "Ocurrió un error desconocido.";
-    throw new Error(errorMessage);
+  } catch (error){
+    throw error;
   }
 };
 

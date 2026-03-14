@@ -364,16 +364,7 @@ function AgentPage() {
       {/* Modal eliminar cuenta */}
       {showDeleteAccountModal && (
         <div className="fixed inset-0 flex justify-center items-center bg-black/50 z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative mx-4">
-            <button
-              onClick={() => setShowDeleteAccountModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"
-              aria-label="Cerrar modal"
-            >
-              <X size={24} />
-            </button>
             <NotificationDeleteAccount onClose={() => setShowDeleteAccountModal(false)} />
-          </div>
         </div>
       )}
 
