@@ -330,7 +330,7 @@ function AgentPage() {
           {/* INPUT AREA */}
           <form
             onSubmit={handleSendMessage}
-            className="border-t border-gray-200 p-3 md:p-4 bg-gray-50 flex-shrink-0"
+            className="border-t border-gray-200 p-3 md:p-4 bg-gray-50 flex-shrink-0 mb-10"
           >
             <div className="max-w-4xl mx-auto flex items-center gap-2 md:gap-3 w-full">
               <textarea
