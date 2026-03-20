@@ -21,6 +21,7 @@ function Settings() {
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   useEffect(() => {
     fetchSubscriptionSummary()
@@ -246,13 +247,27 @@ function Settings() {
                     </div>
                     {portalLoading ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-gray-400" />
+                      
                     ) : (
                       <ChevronRight size={18} className="text-gray-400" />
                     )}
                   </button>
-                ) : (
+                ) : 
+                
+                (
+                  <div>
+                    <p className="text-gray-600 mb-4">
+                      Actualmente la actualización a <span className="font-semibold">PRO</span> 
+                      no está disponible, ya que estamos realizando pruebas piloto para 
+                      mejorar la experiencia.
+                    </p>
+
+                    <p className="text-gray-500 text-sm mb-6">
+                      Muy pronto podrás acceder a esta funcionalidad 🚀
+                    </p>
+                  </div> &&
                   <button
-                    onClick={() => navigate("/pricing")}
+                    //onClick={() => setShowUpgradeModal(true)}
                     className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-xl font-semibold hover:opacity-90 transition"
                   >
                     <Zap size={18} />
@@ -260,6 +275,35 @@ function Settings() {
                   </button>
                 )}
               </div>
+
+              {showUpgradeModal && (
+                <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+                  <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 text-center">
+                    
+                    <div className="text-4xl mb-3">🚧</div>
+
+                    <h2 className="text-xl font-semibold text-gray-800 mb-2">
+                      Función en pruebas
+                    </h2>
+
+                    <p className="text-gray-600 mb-4">
+                      Actualmente la actualización a <span className="font-semibold">PRO</span> 
+                      no está disponible, ya que estamos realizando pruebas piloto.
+                    </p>
+
+                    <p className="text-gray-500 text-sm mb-6">
+                      Muy pronto podrás acceder a esta funcionalidad 🚀
+                    </p>
+
+                    <button
+                      onClick={() => setShowUpgradeModal(false)}
+                      className="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-xl transition"
+                    >
+                      Entendido
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-gray-500 text-sm">

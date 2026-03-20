@@ -205,14 +205,29 @@ function Pricing() {
               ))}
             </ul>
 
+            <div className="bg-white/10 border border-white/20 rounded-xl p-4 mb-4">
+              <p className="text-white/90 mb-4">
+                Actualmente la actualización a <span className="font-semibold">PRO </span> 
+                no está disponible, ya que estamos realizando pruebas piloto para 
+                mejorar la experiencia.
+              </p>
+
+              <p className="text-white/70 text-sm mb-6">
+                Muy pronto podrás acceder a esta funcionalidad 🚀
+              </p>
+
+            </div>
+                
+
             {/* ✅ Botón con 3 estados: isPro / logueado / público */}
             {isPro ? (
               <button disabled className="w-full py-3 px-4 bg-white/20 text-white rounded-xl font-semibold cursor-not-allowed">
                 ✅ Plan activo
               </button>
             ) : (
+
               <button
-                onClick={handleUpgrade}
+                //onClick={handleUpgrade}
                 disabled={loading}
                 className="w-full py-3 px-4 bg-white text-cyan-600 rounded-xl font-bold hover:bg-cyan-50 transition disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
@@ -222,6 +237,7 @@ function Pricing() {
                     Procesando...
                   </>
                 ) : (
+                
                   <>
                     <Zap size={18} />
                     {/* ✅ Texto diferente si no está logueado */}
