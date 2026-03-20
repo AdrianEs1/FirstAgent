@@ -90,7 +90,7 @@ function Header({ onConnectApp, connectedApps, onDeleteAccount }) {
   const handleGetFiles = async () => {
     try {
       const res = await fetchAgentGetFiles();
-      console.log(" Esto es lo que obtengo de mis files guardados:", res);
+      //console.log(" Esto es lo que obtengo de mis files guardados:", res);
       //Asignacion de archivos encohtrados para el usuario
       setFiles(res.file);
     } catch (error) {
