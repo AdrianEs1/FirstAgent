@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { FileUp } from "lucide-react";
 
 export default function LocalFilePickerButton({
   enabled = true,
@@ -40,11 +41,10 @@ export default function LocalFilePickerButton({
         type="button"
         onClick={openFilePicker}
         disabled={!enabled}
-        className="w-full flex items-center gap-2 sm:gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition text-left text-sm sm:text-base"
-        aria-label="Seleccionar archivos"
+        className="w-full flex items-center justify-center gap-2 bg-cyan-600 text-white px-4 py-3 rounded-lg hover:bg-cyan-700 transition font-medium shadow-md"
       >
-        <span className="text-base sm:text-lg">📎</span>
-        <span className="hidden sm:inline">Archivos</span>
+        <FileUp size={16}/>
+        <span className="hidden sm:inline">Cargar Archivos</span>
         <span className="sm:hidden">Files</span>
       </button>
     </>

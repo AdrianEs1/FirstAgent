@@ -19,14 +19,24 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#050d1f" }}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-cyan-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando AssistWork...</p>
+          <div
+            className="rounded-full mx-auto mb-4"
+            style={{
+              width: 56, height: 56,
+              border: "3px solid rgba(0,210,255,0.15)",
+              borderTop: "3px solid #00d2ff",
+              animation: "spin 0.8s linear infinite",
+            }}
+          />
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 14 }}>Cargando AssistWork...</p>
         </div>
       </div>
     );
   }
+
+  
 
   return (
     <Routes>

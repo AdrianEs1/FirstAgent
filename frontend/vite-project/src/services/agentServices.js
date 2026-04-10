@@ -199,83 +199,65 @@ export const fetchAgentGetTokenOAUTH = async ()  => {
 
 
 // ✅ NUEVO: Maneja reconexión sin OAuth
-export const connectOAuth = async (service = "gmail") => {
+export const connectOAuth = async (integration = "google:gmail") => {
   try {
     const data = await api
-      .get(`/api/oauth/${service}/connect`, { withCredentials: true })
+      .get(`/api/oauth/${integration}/connect`, { withCredentials: true })
       .then((res) => res.data);
 
-    // 🔹 Caso 1: Reconexion automática
     if (data.status === "reconnected") {
-      // Puedes mostrar un toast, modal o alerta
-      alert(data.message || `${service} reconectado correctamente.`);
+      alert(data.message || `${integration} reconectado correctamente.`);
       return {
         connected: true,
-        service,
+        integration,
         reconnected: true,
         message: data.message,
       };
     }
 
-    // 🔹 Caso 2: Flujo OAuth normal
     const { authorization_url } = data;
-
-    if (!authorization_url) {
-      throw new Error("No se recibió una URL de autorización válida.");
-    }
 
     const popup = window.open(
       authorization_url,
-      `${service}-oauth`,
+      `${integration}-oauth`,
       "width=600,height=700,left=200,top=100"
     );
 
-    if (!popup) {
-      throw new Error("Por favor, permite ventanas emergentes para continuar con la autenticación.");
-    }
-
-    // Esperar mensaje del callback OAuth
     return new Promise((resolve, reject) => {
       const handleMessage = (event) => {
-        // ✅ Validar contra el origen de tu BACKEND
-        const allowedOrigins = import.meta.env.VITE_URL
+        const allowedOrigin = import.meta.env.VITE_URL;
 
-        console.log(`VITE_URL:${allowedOrigins}, Event Origin: ${event.origin}`)
-        
-        if (allowedOrigins !== event.origin) {
-          console.log('⚠️ Origen no permitido:', event.origin);
-          return;
-        }
-        
-        if (event.data.app !== service) return;
-        
+        if (allowedOrigin !== event.origin) return;
+        if (event.data.app !== integration) return;
+
         window.removeEventListener("message", handleMessage);
         popup.close();
-        
+
         if (event.data.status === "success") {
           resolve({
             connected: true,
             email: event.data.email,
-            service,
+            integration,
             reconnected: false,
           });
         } else {
-          reject(new Error(event.data.message || "Error de autenticación"));
+          reject(new Error(event.data.message));
         }
       };
+
       window.addEventListener("message", handleMessage);
     });
+
   } catch (error) {
-    const message = error.response?.data?.message || error.message || "Error en conexión OAuth.";
-    throw new Error(message);
+    throw new Error(error.response?.data?.message || error.message);
   }
 };
 
 
 
-export const getOAuthStatus= async (service = 'gmail') => {
+export const getOAuthStatus= async (integration) => {
   try{
-    const response = await api.get(`/api/oauth/${service}/status`, { withCredentials: true});
+    const response = await api.get(`/api/oauth/${integration}/status`, { withCredentials: true});
 
     return response.data;
     
@@ -285,9 +267,9 @@ export const getOAuthStatus= async (service = 'gmail') => {
   }
 }
 
-export const disconnectOAuth = async (service = 'gmail') => {
+export const disconnectOAuth = async (integration) => {
   try{
-    const response = await api.delete(`/api/oauth/${service}/disconnect`, { withCredentials: true});
+    const response = await api.delete(`/api/oauth/${integration}/disconnect`, { withCredentials: true});
 
     return response.data;
     
