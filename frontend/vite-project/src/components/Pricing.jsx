@@ -67,10 +67,12 @@ function Pricing() {
 
   const proFeatures = [
     "Conversaciones ilimitadas",
-    "100 archivos PDF (máx. 25MB c/u)",
+    "50 archivos PDF (máx. 10MB c/u)",
     "Gmail completo (leer, enviar, automatizar)",
-    "Historial ilimitado",
-    "20 mensajes de contexto",
+    "Analisis de archivos (leer, resumir)",
+    "Teams (proximamente)",
+    "Historial completo",
+    "10 mensajes de contexto",
     "Acceso prioritario a nuevas herramientas",
     "Soporte por email (24hrs)",
   ];
