@@ -19,14 +19,14 @@ import {
   connectOAuth,
   disconnectOAuth,
 } from "../services/agentServices";
-import { Menu, X, Send, Mail, Users } from "lucide-react";
+import { Menu, X, Send, Mail, Sheet, Users, Target } from "lucide-react";
 
 // ─── Hex background SVG (memo-ized as static string) ───────────────────────
 const HEX_ROWS = [
-  [60,120,180,240,300,360,420,480,540],
-  [30,90,150,210,270,330,390,450,510,570],
-  [60,120,180,240,300,360,420,480,540],
-  [30,90,150,210,270,330,390,450,510,570],
+  [60, 120, 180, 240, 300, 360, 420, 480, 540],
+  [30, 90, 150, 210, 270, 330, 390, 450, 510, 570],
+  [60, 120, 180, 240, 300, 360, 420, 480, 540],
+  [30, 90, 150, 210, 270, 330, 390, 450, 510, 570],
 ];
 const HEX_Y_START = [20, 90, 160, 230];
 
@@ -94,7 +94,7 @@ function AgentPage() {
     ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
   });
 
-  
+
   const {
     isSending,
     currentEvent,
@@ -102,26 +102,28 @@ function AgentPage() {
     addEventListener,
   } = useSSE();
 
-  
+
 
   // Estados principales
-  const [isSidebarOpen, setIsSidebarOpen]         = useState(false);
-  const [connectedApps, setConnectedApps]         = useState({});
-  const [conversations, setConversations]         = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [connectedApps, setConnectedApps] = useState({});
+  const [conversations, setConversations] = useState([]);
   const [activeConversationId, setActiveConversationId] = useState(null);
-  const [messages, setMessages]                   = useState([]);
-  const [newMessage, setNewMessage]               = useState("");
-  const [loading, setLoading]                     = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [loading, setLoading] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [conversationModal, setConversationModal] = useState(null);
-  const [showArchived, setShowArchived]           = useState(() => {
+  const [showArchived, setShowArchived] = useState(() => {
     return localStorage.getItem("conv_view") === "archived";
   });
 
   const apps = [
     { id: 'google:gmail', name: 'Gmail', icon: Mail, color: 'text-red-500' },
-    { id: 'microsoft:teams', name: 'Teams', icon: Users, color: 'text-blue-500'}
+    { id: 'google:sheets', name: 'Sheets', icon: Sheet, color: 'text-green-500' },
+    { id: 'microsoft:teams', name: 'Teams', icon: Users, color: 'text-blue-500' },
+    //{ id: 'hubspot:crm', name: 'HubSpot', icon: Target, color: 'text-orange-500' }
   ];
 
   const [files, setFiles] = useState([]);
@@ -208,7 +210,7 @@ function AgentPage() {
 
   // ── OAuth ─────────────────────────────────────────────────────────────────
   const checkOAuthStatus = async () => {
-    const integrations = ["google:gmail"]; 
+    const integrations = ["google:gmail", "google:sheets", "microsoft:teams"];
 
     try {
       const statuses = await Promise.all(
@@ -252,7 +254,7 @@ function AgentPage() {
         }
 
         await checkOAuthStatus();
-        alert(`${appName} conectado exitosamente${result?.email ? ` como ${result.email}` : ""}`);
+        alert(`${appName} conectado exitosamente`);
       } catch (error) {
         console.error(`❌ Error conectando ${appName}:`, error);
         alert(`Error al conectar ${appName}`);
@@ -343,9 +345,9 @@ function AgentPage() {
     setConversationModal({ id, action: "delete" });
   };
 
-  const activeConversations   = conversations.filter(c => c.status !== "archived");
+  const activeConversations = conversations.filter(c => c.status !== "archived");
   const archivedConversations = conversations.filter(c => c.status === "archived");
- 
+
   // ─────────────────────────────────────────────────────────────────────────
 
   // ── Loading screen ────────────────────────────────────────────────────────
@@ -489,7 +491,7 @@ function AgentPage() {
           {/* INPUT */}
           <form
             onSubmit={handleSendMessage}
-            className="relative z-10 flex-shrink-0 px-3 md:px-4 pb-4 pt-2"
+            className="relative z-10 flex-shrink-0 px-3 md:px-4 pb-4 pt-2 mb-6"
             style={{ borderTop: "0.5px solid rgba(255,255,255,0.07)" }}
           >
             <div className="max-w-4xl mx-auto flex items-center gap-2 md:gap-3">

@@ -210,17 +210,23 @@ function Home() {
   const navigate = useNavigate();
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [showLoginModal, setShowLoginModal]       = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [scrolled, setScrolled]                   = useState(false);
-  const [contactForm, setContactForm]             = useState({ name: "", email: "", message: "" });
-  const [contactSent, setContactSent]             = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [contactForm, setContactForm] = useState({ name: "", email: "", message: "" });
+  const [contactSent, setContactSent] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/agentPage");
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleContactSubmit = (e) => {
     e.preventDefault();
@@ -255,9 +261,9 @@ function Home() {
             <div className="hidden md:flex items-center gap-1">
               {[
                 { label: "Cómo funciona", href: "#how-it-works" },
-                { label: "Planes",        href: "#plans" },
-                { label: "Equipo",        href: "#team" },
-                { label: "Contacto",      href: "#contact" },
+                { label: "Planes", href: "#plans" },
+                { label: "Equipo", href: "#team" },
+                { label: "Contacto", href: "#contact" },
               ].map((item) => (
                 <a
                   key={item.href}
@@ -463,11 +469,10 @@ function Home() {
               {plans.map((plan, i) => (
                 <div
                   key={i}
-                  className={`plan-card rounded-2xl p-8 border ${
-                    plan.highlight
+                  className={`plan-card rounded-2xl p-8 border ${plan.highlight
                       ? "bg-gradient-to-br from-cyan-600 to-cyan-800 border-cyan-500 text-white shadow-xl"
                       : "bg-white border-cyan-100 shadow-sm"
-                  }`}
+                    }`}
                 >
                   {plan.highlight && (
                     <span className="inline-block bg-white/20 text-white text-xs font-sora font-semibold px-3 py-1 rounded-full mb-4 border border-white/30">
@@ -681,8 +686,8 @@ function Home() {
             <span>© 2025 AssistWork. Todos los derechos reservados.</span>
             <div className="flex items-center gap-4">
               <a href="/privacy" className="hover:text-white/80 transition">Privacidad</a>
-              <a href="/terms"   className="hover:text-white/80 transition">Términos</a>
-              <a href="/refund"  className="hover:text-white/80 transition">Reembolsos</a>
+              <a href="/terms" className="hover:text-white/80 transition">Términos</a>
+              <a href="/refund" className="hover:text-white/80 transition">Reembolsos</a>
               <a href="mailto:adrian@assistwork.online" className="hover:text-white/80 transition inline-flex items-center gap-1">
                 <Mail size={12} /> Contacto
               </a>
