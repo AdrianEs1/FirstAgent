@@ -11,28 +11,28 @@ function AuthProvider({ children }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      console.log("🔍 Iniciando verificación de auth...");
+      //console.log("🔍 Iniciando verificación de auth...");
       const token = localStorage.getItem("token");
-      console.log("🎫 Token encontrado:", token ? "SÍ" : "NO");
+      //console.log("🎫 Token encontrado:", token ? "SÍ" : "NO");
       
       if (token) {
         try {
-          console.log("📡 Llamando a fetchCurrentUser...");
+          //console.log("📡 Llamando a fetchCurrentUser...");
           const userData = await fetchCurrentUser(token);
-          console.log("✅ Usuario obtenido:", userData);
+          //console.log("✅ Usuario obtenido:", userData);
           setUser(userData);
           setIsAuthenticated(true);
         } catch (error) {
-          console.error("❌ Error en fetchCurrentUser:", error);
+          //console.error("❌ Error en fetchCurrentUser:", error);
           localStorage.removeItem("token");
           setUser(null);
           setIsAuthenticated(false);
         }
       } else {
-        console.log("⚠️ No hay token, usuario no autenticado");
+        //console.log("⚠️ No hay token, usuario no autenticado");
       }
       setIsLoading(false);
-      console.log("✅ Verificación completada");
+      //console.log("✅ Verificación completada");
     };
     initAuth();
   }, []);

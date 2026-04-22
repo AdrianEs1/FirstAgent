@@ -71,7 +71,7 @@ class SSEService {
     });
 
     const url = `${API_BASE}/agent/stream?${params.toString()}`;
-    console.log('📡 Abriendo stream SSE...');
+    //console.log('📡 Abriendo stream SSE...');
 
     const source = new EventSource(url);
     this.activeSource = source;
@@ -83,10 +83,10 @@ class SSEService {
       source.addEventListener(eventType, (e) => {
         try {
           const data = JSON.parse(e.data);
-          console.log(`📨 Evento [${eventType}]:`, data);
+          //console.log(`📨 Evento [${eventType}]:`, data);
           this._dispatch(eventType, { type: eventType, ...data });
         } catch (err) {
-          console.error(`❌ Error parseando evento ${eventType}:`, err);
+          //console.error(`❌ Error parseando evento ${eventType}:`, err);
         }
       });
     });
@@ -95,10 +95,10 @@ class SSEService {
     source.addEventListener('completed', (e) => {
       try {
         const data = JSON.parse(e.data);
-        console.log('✅ Completado:', data);
+        //console.log('✅ Completado:', data);
         this._dispatch('completed', { type: 'completed', ...data });
       } catch (err) {
-        console.error('❌ Error parseando completed:', err);
+        //console.error('❌ Error parseando completed:', err);
       } finally {
         this._closeActiveSource();
       }
@@ -110,7 +110,7 @@ class SSEService {
       // (event: error\ndata: {...})
       try {
         const data = JSON.parse(e.data);
-        console.error('❌ Error del agente:', data);
+        //console.error('❌ Error del agente:', data);
         this._dispatch('error', { type: 'error', ...data });
       } catch {
         // Si no tiene data parseable, ignorar (lo maneja onerror abajo)
@@ -124,7 +124,7 @@ class SSEService {
       // EventSource reintenta automáticamente en errores transitorios.
       // Solo propagamos si la fuente ya está cerrada (error definitivo).
       if (source.readyState === EventSource.CLOSED) {
-        console.error('❌ Conexión SSE cerrada inesperadamente');
+        //console.error('❌ Conexión SSE cerrada inesperadamente');
         this._dispatch('error', {
           type: 'error',
           message: 'Conexión perdida con el servidor. Por favor, intenta de nuevo.',
@@ -141,7 +141,7 @@ class SSEService {
     if (this.activeSource) {
       this.activeSource.close();
       this.activeSource = null;
-      console.log('🔌 Stream SSE cerrado');
+      //console.log('🔌 Stream SSE cerrado');
     }
   }
 

@@ -122,7 +122,7 @@ function AgentPage() {
   const apps = [
     { id: 'google:gmail', name: 'Gmail', icon: Mail, color: 'text-red-500' },
     { id: 'google:sheets', name: 'Sheets', icon: Sheet, color: 'text-green-500' },
-    { id: 'microsoft:teams', name: 'Teams', icon: Users, color: 'text-blue-500' },
+    //{ id: 'microsoft:teams', name: 'Teams', icon: Users, color: 'text-blue-500' },
     //{ id: 'hubspot:crm', name: 'HubSpot', icon: Target, color: 'text-orange-500' }
   ];
 
@@ -191,7 +191,7 @@ function AgentPage() {
       setActiveConversationId(null);
       setMessages([]);
     } catch (error) {
-      console.error("Error cargando conversaciones:", error);
+      //console.error("Error cargando conversaciones:", error);
     } finally {
       setLoadingConversations(false);
     }
@@ -203,14 +203,14 @@ function AgentPage() {
       const data = await fetchConversationById(conversationId);
       setMessages(data.messages || []);
     } catch (error) {
-      console.error("Error cargando mensajes:", error);
+      //console.error("Error cargando mensajes:", error);
       setMessages([]);
     }
   };
 
   // ── OAuth ─────────────────────────────────────────────────────────────────
   const checkOAuthStatus = async () => {
-    const integrations = ["google:gmail", "google:sheets", "microsoft:teams"];
+    const integrations = ["google:gmail", "google:sheets"];
 
     try {
       const statuses = await Promise.all(
@@ -226,7 +226,7 @@ function AgentPage() {
 
       setConnectedApps((prev) => ({ ...prev, ...newStates }));
     } catch (error) {
-      console.error("Error verificando OAuth:", error);
+      //console.error("Error verificando OAuth:", error);
     }
   };
 
@@ -240,7 +240,7 @@ function AgentPage() {
         await checkOAuthStatus();
         alert(`${appName} desconectado exitosamente`);
       } catch (error) {
-        console.error(`Error desconectando ${appName}:`, error);
+        //console.error(`Error desconectando ${appName}:`, error);
         alert(`Error al desconectar ${appName}`);
       }
     } else {
@@ -256,7 +256,7 @@ function AgentPage() {
         await checkOAuthStatus();
         alert(`${appName} conectado exitosamente`);
       } catch (error) {
-        console.error(`❌ Error conectando ${appName}:`, error);
+        //console.error(`❌ Error conectando ${appName}:`, error);
         alert(`Error al conectar ${appName}`);
         await checkOAuthStatus();
       }
@@ -288,7 +288,7 @@ function AgentPage() {
       // sendSSEMessage abre el stream y resuelve cuando llega "completed"
       const data = await sendSSEMessage(messageToSend, activeConversationId);
 
-      console.log("✅ Mensaje completado:", data);
+      //console.log("✅ Mensaje completado:", data);
 
       // Agregar respuesta del agente
       const botMsg = {
@@ -317,7 +317,7 @@ function AgentPage() {
       }
 
     } catch (error) {
-      console.error("Error enviando mensaje:", error);
+      //console.error("Error enviando mensaje:", error);
       setMessages(prev => [...prev, {
         id: `temp-${Date.now() + 1}`,
         role: "assistant",
