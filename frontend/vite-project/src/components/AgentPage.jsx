@@ -122,7 +122,7 @@ function AgentPage() {
   const apps = [
     { id: 'google:gmail', name: 'Gmail', icon: Mail, color: 'text-red-500' },
     { id: 'google:sheets', name: 'Sheets', icon: Sheet, color: 'text-green-500' },
-    //{ id: 'microsoft:teams', name: 'Teams', icon: Users, color: 'text-blue-500' },
+    { id: 'microsoft:teams', name: 'Teams', icon: Users, color: 'text-blue-500' }
     //{ id: 'hubspot:crm', name: 'HubSpot', icon: Target, color: 'text-orange-500' }
   ];
 
@@ -210,7 +210,7 @@ function AgentPage() {
 
   // ── OAuth ─────────────────────────────────────────────────────────────────
   const checkOAuthStatus = async () => {
-    const integrations = ["google:gmail", "google:sheets"];
+    const integrations = ["google:gmail", "google:sheets", "microsoft:teams"];
 
     try {
       const statuses = await Promise.all(
