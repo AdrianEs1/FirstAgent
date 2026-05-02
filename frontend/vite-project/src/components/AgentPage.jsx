@@ -86,13 +86,7 @@ function AgentPage() {
   const { user } = useAuth();
   const textareaRef = useRef(null);
 
-  // ── Auto-resize textarea ──────────────────────────────────────────────────
-  useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
-  });
+  // ── Auto-resize textarea ─────────────────────────────────────────────────
 
 
   const {
@@ -172,7 +166,7 @@ function AgentPage() {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
-      textarea.style.height = textarea.scrollHeight + "px";
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + "px"; // ← agregar límite
     }
   }, [newMessage]);
 

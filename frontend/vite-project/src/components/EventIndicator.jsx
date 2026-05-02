@@ -10,11 +10,35 @@ function EventIndicator({ event }) {
 
   // Mapear tipos de eventos a iconos y colores
   const eventConfig = {
+    validating: {
+      icon: Loader2,
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-50',
+      label: 'Trabajando'
+    },
     analyzing: {
       icon: Brain,
       color: 'text-blue-500',
       bgColor: 'bg-blue-50',
       label: 'Analizando'
+    },
+    loading: {
+      icon: Loader2,
+      color: 'text-indigo-500',
+      bgColor: 'bg-indigo-50',
+      label: 'Cargando'
+    },
+    connecting: {
+      icon: Loader2,
+      color: 'text-purple-500',
+      bgColor: 'bg-purple-50',
+      label: 'Conectando'
+    },
+    thinking: {
+      icon: Brain,
+      color: 'text-pink-500',
+      bgColor: 'bg-pink-50',
+      label: 'Pensando'
     },
     planning: {
       icon: FileSearch,
@@ -39,6 +63,12 @@ function EventIndicator({ event }) {
       color: 'text-orange-500',
       bgColor: 'bg-orange-50',
       label: 'Guardando'
+    },
+    warning: {
+      icon: Loader2,
+      color: 'text-yellow-500',
+      bgColor: 'bg-yellow-50',
+      label: 'Advertencia'
     }
   };
 

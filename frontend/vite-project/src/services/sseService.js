@@ -16,17 +16,50 @@ const API_BASE = import.meta.env.DEV
   ? `http://${import.meta.env.VITE_API_URL_LOC}`
   : `https://${import.meta.env.VITE_API_URL_PROD}`;
 
+const STREAM_TIMEOUT_MS = 60_000;
+
+const PROGRESS_EVENTS = [
+  'validating',
+  'analyzing',
+  'loading',
+  'connecting',
+  'thinking',
+  'planning',
+  'executing',
+  'processing',
+  'saving',
+  'warning',
+];
 
 class SSEService {
   constructor() {
-    this.sessionId = crypto.randomUUID();   // UUID estable por pestaña
-    this.messageHandlers = new Map();        // event_type → [handlers]
-    this.activeSource = null;                // EventSource activo (un stream por vez)
+    this.sessionId = this._getOrCreateSessionId();
+    this.messageHandlers = new Map();
+    this.activeSource = null;
+    this._streamTimeout = null;
   }
 
-  // ─── Registro de handlers ──────────────────────────────────────────────
+  // ─── Session ─────────────────────────────────────────────
 
-  /** Suscribirse a un tipo de evento (e.g. "analyzing", "completed") */
+  _getOrCreateSessionId() {
+    const KEY = 'sse_session_id';
+    let id = sessionStorage.getItem(KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      sessionStorage.setItem(KEY, id);
+    }
+    return id;
+  }
+
+  resetSession() {
+    const KEY = 'sse_session_id';
+    const id = crypto.randomUUID();
+    sessionStorage.setItem(KEY, id);
+    this.sessionId = id;
+  }
+
+  // ─── Handlers ────────────────────────────────────────────
+
   on(eventType, handler) {
     if (!this.messageHandlers.has(eventType)) {
       this.messageHandlers.set(eventType, []);
@@ -34,7 +67,6 @@ class SSEService {
     this.messageHandlers.get(eventType).push(handler);
   }
 
-  /** Desuscribirse */
   off(eventType, handler) {
     const handlers = this.messageHandlers.get(eventType);
     if (!handlers) return;
@@ -42,120 +74,203 @@ class SSEService {
     if (idx > -1) handlers.splice(idx, 1);
   }
 
-  /** Despachar a todos los handlers registrados para ese tipo */
   _dispatch(eventType, data) {
+    console.log('[SSE DISPATCH]', eventType, data);
+
     const handlers = this.messageHandlers.get(eventType) || [];
-    handlers.forEach(h => h(data));
+
+    handlers.forEach(h => {
+      try {
+        h(data);
+      } catch (err) {
+        console.error('[SSE HANDLER ERROR]', eventType, err);
+      }
+    });
   }
 
-  // ─── Envío de mensaje + apertura de stream ────────────────────────────
+  // ─── API flow ────────────────────────────────────────────
 
-  /**
-   * Envía el mensaje y abre el stream SSE para recibir eventos del agente.
-   *
-   * @param {string} message          Texto del usuario
-   * @param {string|null} conversationId  UUID conversación existente
-   */
   async sendMessage(message, conversationId = null) {
-    // Cerrar stream anterior si existe
     this._closeActiveSource();
 
+    let request_id;
+
+    try {
+      console.log('[SSE] Sending message:', { message, conversationId });
+
+      request_id = await this._postMessage(message, conversationId);
+    } catch (err) {
+      this._dispatch('error', {
+        type: 'error',
+        message: 'No se pudo enviar el mensaje al servidor. Intenta de nuevo.',
+        error_type: 'SendError',
+      });
+      return;
+    }
+
+    this._openStream(request_id);
+  }
+
+  async _postMessage(message, conversationId) {
     const token = await getValidAccessToken();
 
-    // Construir URL con query params (GET — SSE no soporta body)
-    const params = new URLSearchParams({
-      token,
-      message,
-      session_id: this.sessionId,
-      ...(conversationId ? { conversation_id: conversationId } : {}),
+    const response = await fetch(`${API_BASE}/agent/send`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message,
+        session_id: this.sessionId,
+        conversation_id: conversationId ?? undefined,
+      }),
     });
 
-    const url = `${API_BASE}/agent/stream?${params.toString()}`;
-    //console.log('📡 Abriendo stream SSE...');
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.detail || `HTTP ${response.status}`);
+    }
+
+    const { request_id } = await response.json();
+
+    if (!request_id) {
+      throw new Error('El servidor no devolvió request_id');
+    }
+
+    return request_id;
+  }
+
+  // ─── STREAM SSE ──────────────────────────────────────────
+
+  _openStream(request_id) {
+    const url = `${API_BASE}/agent/stream/${request_id}`;
+    console.log('[SSE] Opening stream:', url);
 
     const source = new EventSource(url);
     this.activeSource = source;
 
-    // ── Eventos de progreso del agente ────────────────────────────────
-    const progressEvents = ['analyzing', 'planning', 'executing', 'processing', 'saving', 'warning'];
+    // Timeout
+    this._streamTimeout = setTimeout(() => {
+      console.warn('[SSE] Timeout alcanzado');
 
-    progressEvents.forEach(eventType => {
+      this._dispatch('error', {
+        type: 'error',
+        message: 'El agente tardó demasiado en responder. Intenta de nuevo.',
+        error_type: 'TimeoutError',
+      });
+
+      this._closeActiveSource();
+    }, STREAM_TIMEOUT_MS);
+
+    // Helper seguro
+    const safeParse = (raw, label) => {
+      try {
+        return JSON.parse(raw);
+      } catch (err) {
+        console.error(`[SSE] Error parseando ${label}:`, err, raw);
+        return null;
+      }
+    };
+
+    // Eventos nombrados
+    PROGRESS_EVENTS.forEach(eventType => {
       source.addEventListener(eventType, (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          //console.log(`📨 Evento [${eventType}]:`, data);
-          this._dispatch(eventType, { type: eventType, ...data });
-        } catch (err) {
-          //console.error(`❌ Error parseando evento ${eventType}:`, err);
-        }
+        console.log('[SSE RAW EVENT]', eventType, e.data);
+
+        const data = safeParse(e.data, eventType);
+        if (!data) return;
+
+        console.log('[SSE EVENT]', eventType, data);
+
+        this._dispatch(eventType, { type: eventType, ...data });
       });
     });
 
-    // ── Evento final: operación completada ────────────────────────────
+    // Fallback (MUY IMPORTANTE)
+    source.onmessage = (e) => {
+      console.log('[SSE DEFAULT EVENT]', e.data);
+
+      const data = safeParse(e.data, 'default');
+      if (!data) return;
+
+      this._dispatch('message', { type: 'message', ...data });
+    };
+
+    // Completed
     source.addEventListener('completed', (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        //console.log('✅ Completado:', data);
-        this._dispatch('completed', { type: 'completed', ...data });
-      } catch (err) {
-        //console.error('❌ Error parseando completed:', err);
-      } finally {
-        this._closeActiveSource();
-      }
+      console.log('[SSE COMPLETED RAW]', e.data);
+
+      const data = safeParse(e.data, 'completed');
+      if (!data) return;
+
+      console.log('[SSE COMPLETED]', data);
+
+      this._dispatch('completed', { type: 'completed', ...data });
+
+      this._closeActiveSource();
     });
 
-    // ── Evento de error del agente ────────────────────────────────────
+    // Error del backend (evento SSE)
     source.addEventListener('error', (e) => {
-      // Este listener captura errores enviados INTENCIONALMENTE por el backend
-      // (event: error\ndata: {...})
-      try {
-        const data = JSON.parse(e.data);
-        //console.error('❌ Error del agente:', data);
+      console.warn('[SSE BACKEND ERROR RAW]', e.data);
+
+      const data = safeParse(e.data, 'error');
+
+      if (data) {
+        console.warn('[SSE BACKEND ERROR]', data);
+
         this._dispatch('error', { type: 'error', ...data });
-      } catch {
-        // Si no tiene data parseable, ignorar (lo maneja onerror abajo)
-      } finally {
-        this._closeActiveSource();
+      } else {
+        console.warn('[SSE] Error sin payload JSON');
       }
+
+      this._closeActiveSource();
     });
 
-    // ── Error de conexión (red caída, timeout, etc.) ──────────────────
-    source.onerror = (e) => {
-      // EventSource reintenta automáticamente en errores transitorios.
-      // Solo propagamos si la fuente ya está cerrada (error definitivo).
+    // Error de red
+    source.onerror = (err) => {
+      console.error('[SSE NETWORK ERROR]', err, source.readyState);
+
       if (source.readyState === EventSource.CLOSED) {
-        //console.error('❌ Conexión SSE cerrada inesperadamente');
         this._dispatch('error', {
           type: 'error',
-          message: 'Conexión perdida con el servidor. Por favor, intenta de nuevo.',
+          message:
+            'Conexión perdida con el servidor. Por favor, intenta de nuevo.',
           error_type: 'ConnectionError',
         });
+
         this._closeActiveSource();
       }
     };
   }
 
-  // ─── Utilidades ───────────────────────────────────────────────────────
+  // ─── Utils ───────────────────────────────────────────────
 
   _closeActiveSource() {
+    if (this._streamTimeout) {
+      clearTimeout(this._streamTimeout);
+      this._streamTimeout = null;
+    }
+
     if (this.activeSource) {
+      console.log('[SSE] Closing stream');
+
       this.activeSource.close();
       this.activeSource = null;
-      //console.log('🔌 Stream SSE cerrado');
     }
   }
 
-  /** Cancelar stream activo (e.g. usuario navega a otra página) */
   disconnect() {
     this._closeActiveSource();
   }
 
-  /** Compatibilidad con código que llama isConnected() */
   isConnected() {
-    return this.activeSource !== null &&
-           this.activeSource.readyState !== EventSource.CLOSED;
+    return (
+      this.activeSource !== null &&
+      this.activeSource.readyState !== EventSource.CLOSED
+    );
   }
 }
 
-// Singleton — mismo patrón que wsService
 export const sseService = new SSEService();
