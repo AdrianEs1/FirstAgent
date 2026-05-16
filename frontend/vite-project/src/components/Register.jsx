@@ -18,9 +18,8 @@ function RegisterCard({ onSwitchToLogin, onClose}) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
-        setLoading(true);
 
-        // 1. Sanitización y Validaciones previas
+        // ✅ Validaciones ANTES de setLoading
         const cleanEmail = email.trim();
         if (!cleanEmail || !password || !name) {
             setError("Por favor, completa todos los campos.");
@@ -32,24 +31,28 @@ function RegisterCard({ onSwitchToLogin, onClose}) {
             return;
         }
 
-        if (password.length < 6) {
-            setError("La contraseña debe tener al menos 6 caracteres.");
+        if (password.length < 9) {
+            setError("La contraseña debe tener al menos 9 caracteres.");
             return;
         }
 
+        // ✅ Solo activas loading cuando vas a llamar al backend
         setLoading(true);
-
         try {
             await fetchAgentRegister({ email, password, name });
             setStep("verify");
-            setLoading(false);
-            
-
         } catch (err) {
-            console.error("Error en el registro");
-            const errorMessage = err?.response?.data?.detail ||
-                err?.message || "Error al registrarse";
+            const detail = err?.response?.data?.detail;
+            let errorMessage;
+            if (Array.isArray(detail)) {
+                errorMessage = detail.map(e => e.msg).join(", ");
+            } else if (typeof detail === "string") {
+                errorMessage = detail;
+            } else {
+                errorMessage = err?.message || "Error al registrarse";
+            }
             setError(errorMessage);
+        } finally {
             setLoading(false);
         }
     };
