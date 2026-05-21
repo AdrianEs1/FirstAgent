@@ -92,6 +92,7 @@ function AgentPage() {
   const {
     isSending,
     currentEvent,
+    streamingText,   
     sendMessage: sendSSEMessage,
     addEventListener,
   } = useSSE();
@@ -461,19 +462,21 @@ function AgentPage() {
               </div>
             ) : (
               <>
-                <ChatArea messages={messages} loading={false} />
+                <ChatArea messages={messages} loading={false} streamingText={streamingText} />
                 {loading && currentEvent && <EventIndicator event={currentEvent} />}
                 {loading && !currentEvent && (
-                  <div className="flex justify-start px-4 pb-4">
-                    <div className="rounded-2xl px-4 py-3" style={{ background: "rgba(255,255,255,0.06)", border: "0.5px solid rgba(255,255,255,0.1)" }}>
-                      <div className="flex gap-1.5">
-                        {[0, 150, 300].map((delay) => (
-                          <div key={delay} className="w-2 h-2 rounded-full animate-bounce"
-                            style={{ background: "rgba(0,210,255,0.6)", animationDelay: `${delay}ms` }} />
-                        ))}
+                  streamingText ? null : (
+                    <div className="flex justify-start px-4 pb-4">
+                      <div className="rounded-2xl px-4 py-3" style={{ background: "rgba(255,255,255,0.06)", border: "0.5px solid rgba(255,255,255,0.1)" }}>
+                        <div className="flex gap-1.5">
+                          {[0, 150, 300].map((delay) => (
+                            <div key={delay} className="w-2 h-2 rounded-full animate-bounce"
+                              style={{ background: "rgba(0,210,255,0.6)", animationDelay: `${delay}ms` }} />
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )
                 )}
               </>
             )}

@@ -8,7 +8,6 @@
  *  - isSending reemplaza isConnected como indicador de actividad
  *  - sendMessage es async y lanza el stream por sí solo
  */
-
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { sseService } from '../services/sseService';
 
@@ -17,9 +16,9 @@ import { sseService } from '../services/sseService';
 const PROGRESS_EVENTS = [
   'validating',
   'analyzing',   // clasificando intent
-  'loading',     // cargando herramientas        ← faltaba
-  'connecting',  // iniciando sesión ADK          ← faltaba
-  'thinking',    // agente procesando             ← faltaba
+  'loading',     // cargando herramientas
+  'connecting',  // iniciando sesión ADK
+  'thinking',    // agente procesando
   'planning',    // planificando pasos
   'executing',   // ejecutando tool
   'processing',  // procesando resultado de tool
@@ -28,51 +27,45 @@ const PROGRESS_EVENTS = [
 ];
 
 export function useSSE() {
-  const [isSending, setIsSending]       = useState(false);
-  const [currentEvent, setCurrentEvent] = useState(null);
-  const [error, setError]               = useState(null);
+  const [isSending, setIsSending]           = useState(false);
+  const [currentEvent, setCurrentEvent]     = useState(null);
+  const [error, setError]                   = useState(null);
+  const [streamingText, setStreamingText]   = useState('');
+
+  // Acumulador de texto — useRef para no generar renders extra en cada concat;
+  // el useState arriba es lo que el componente consume para renderizar.
+  const streamingTextRef = useRef('');
 
   // Ref para los handlers one-shot (completed / error) — permite cancelarlos
   // si el componente se desmonta antes de que el stream termine.
   const oneShotRef = useRef({ onCompleted: null, onError: null });
-  const lastEventTimeRef = useRef(0);
-  const timeoutRef = useRef(null);
+
+  // ── Listener de chunks ────────────────────────────────────────────────────
+  // Se registra al montar y se limpia al desmontar.
+  // Acumula data.text en el ref y actualiza el estado para triggear render.
+  useEffect(() => {
+    const chunkHandler = (data) => {
+      if (!data?.text) return;
+      streamingTextRef.current += data.text;
+      setStreamingText(streamingTextRef.current);
+    };
+
+    sseService.on('chunk', chunkHandler);
+    return () => sseService.off('chunk', chunkHandler);
+  }, []);
 
   // ── Listeners de progreso ─────────────────────────────────────────────────
-  // Se registran al montar y se limpian al desmontar.
-  // Actualizan currentEvent para que el componente pueda mostrar el estado.
   useEffect(() => {
-
-    const MIN_EVENT_DURATION = 500; // 🔥 puedes ajustar: 400–800ms
-
     const progressHandler = (data) => {
-      const now = Date.now();
-      const elapsed = now - lastEventTimeRef.current;
-
-      const applyEvent = () => {
-        lastEventTimeRef.current = Date.now();
-        setCurrentEvent({ type: data.type, message: data.message, ...data });
-      };
-
-      // Si el último evento fue muy reciente → retrasar
-      if (elapsed < MIN_EVENT_DURATION) {
-        clearTimeout(timeoutRef.current);
-
-        timeoutRef.current = setTimeout(() => {
-          applyEvent();
-        }, MIN_EVENT_DURATION - elapsed);
-      } else {
-        applyEvent();
-      }
+      setCurrentEvent({ type: data.type, message: data.message, ...data });
     };
 
     PROGRESS_EVENTS.forEach(type => sseService.on(type, progressHandler));
 
     return () => {
       PROGRESS_EVENTS.forEach(type => sseService.off(type, progressHandler));
-      clearTimeout(timeoutRef.current);
     };
-  }, []); // Sin dependencias — se registra una vez y sobrevive re-renders
+  }, []);
 
   // ── Limpieza si el componente se desmonta con stream activo ───────────────
   useEffect(() => {
@@ -83,6 +76,12 @@ export function useSSE() {
       sseService.disconnect();
     };
   }, []);
+
+  // ── Helper interno: resetea el texto de streaming ─────────────────────────
+  const _clearStreamingText = () => {
+    streamingTextRef.current = '';
+    setStreamingText('');
+  };
 
   // ── Enviar mensaje ────────────────────────────────────────────────────────
   /**
@@ -96,6 +95,7 @@ export function useSSE() {
     setIsSending(true);
     setCurrentEvent(null);
     setError(null);
+    _clearStreamingText();
 
     return new Promise((resolve, reject) => {
 
@@ -106,6 +106,7 @@ export function useSSE() {
         oneShotRef.current = { onCompleted: null, onError: null };
         setIsSending(false);
         setCurrentEvent(null);
+        _clearStreamingText();
         resolve(data);
       };
 
@@ -115,6 +116,7 @@ export function useSSE() {
         oneShotRef.current = { onCompleted: null, onError: null };
         setIsSending(false);
         setCurrentEvent(null);
+        _clearStreamingText();
         const msg = data?.message || 'Error desconocido';
         setError(msg);
         reject(new Error(msg));
@@ -134,6 +136,7 @@ export function useSSE() {
         oneShotRef.current = { onCompleted: null, onError: null };
         setIsSending(false);
         setCurrentEvent(null);
+        _clearStreamingText();
         const msg = err?.message || 'Error al enviar mensaje';
         setError(msg);
         reject(new Error(msg));
@@ -151,6 +154,7 @@ export function useSSE() {
     sseService.disconnect();
     setIsSending(false);
     setCurrentEvent(null);
+    _clearStreamingText();
   }, []);
 
   // ── Registro manual de listeners (para uso avanzado desde componentes) ────
@@ -165,6 +169,7 @@ export function useSSE() {
     isConnected: isSending,   // alias para compatibilidad con código existente
     currentEvent,
     error,
+    streamingText,            // texto parcial acumulado durante el stream
 
     // Acciones
     sendMessage,

@@ -113,7 +113,7 @@ class SSEService {
 
   async _postMessage(message, conversationId) {
     const token = await getValidAccessToken();
-
+    const t0 = Date.now()
     const response = await fetch(`${API_BASE}/agent/send`, {
       method: 'POST',
       headers: {
@@ -126,6 +126,8 @@ class SSEService {
         conversation_id: conversationId ?? undefined,
       }),
     });
+    console.log(`[POST] took: ${Date.now() - t0}ms`)
+
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
@@ -144,6 +146,7 @@ class SSEService {
   // ─── STREAM SSE ──────────────────────────────────────────
 
   _openStream(request_id) {
+    const t1 = Date.now()
     const url = `${API_BASE}/agent/stream/${request_id}`;
     console.log('[SSE] Opening stream:', url);
 
@@ -173,10 +176,11 @@ class SSEService {
       }
     };
 
-    // Eventos nombrados
+    // Eventos de progreso
     PROGRESS_EVENTS.forEach(eventType => {
       source.addEventListener(eventType, (e) => {
-        console.log('[SSE RAW EVENT]', eventType, e.data);
+        console.log('[SSE RAW EVENT]', eventType, e.data)
+        console.log(`[POST→SSE gap]: ${Date.now() - t1}ms`);
 
         const data = safeParse(e.data, eventType);
         if (!data) return;
@@ -185,6 +189,14 @@ class SSEService {
 
         this._dispatch(eventType, { type: eventType, ...data });
       });
+    });
+
+    // Evento chunk — fragmentos de texto en tiempo real del LLM
+    source.addEventListener('chunk', (e) => {
+      const data = safeParse(e.data, 'chunk');
+      if (!data) return;
+
+      this._dispatch('chunk', { type: 'chunk', ...data });
     });
 
     // Fallback (MUY IMPORTANTE)

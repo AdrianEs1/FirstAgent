@@ -13,12 +13,12 @@ const formatContent = (text) => {
     .trim();
 };
 
-function ChatArea({ messages, loading }) {
+function ChatArea({ messages, loading, streamingText }) {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, streamingText]);
 
   return (
     <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
@@ -89,13 +89,57 @@ function ChatArea({ messages, loading }) {
         ))
       )}
 
-      {loading && (
+      {/*{loading && (
         <div className="flex justify-start">
           <div className="rounded-2xl px-4 py-3" style={{ background: "rgba(255,255,255,0.06)", border: "0.5px solid rgba(255,255,255,0.1)" }}>
             <div className="flex gap-1.5">
               <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: "rgba(0,210,255,0.6)", animationDelay: "0ms" }} />
               <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: "rgba(0,210,255,0.6)", animationDelay: "150ms" }} />
               <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: "rgba(0,210,255,0.6)", animationDelay: "300ms" }} />
+            </div>
+          </div>
+        </div>
+      )}*/}
+
+      {streamingText && (
+        <div className="flex justify-start">
+          <div
+            className="max-w-[72%] rounded-2xl px-4 py-3 break-words"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "0.5px solid rgba(255,255,255,0.1)",
+              color: "rgba(255,255,255,0.85)",
+            }}
+          >
+            <div className="prose prose-sm max-w-none text-sm break-words" style={{ color: "inherit" }}>
+              <ReactMarkdown
+                rehypePlugins={[rehypeRaw, [rehypeSanitize, geminiSanitizeSchema]]}
+                components={{
+                  p: ({ children }) => (
+                    <p style={{ marginBottom: '0.65rem', lineHeight: '1.75', color: 'inherit' }}>{children}</p>
+                  ),
+                  strong: ({ children }) => (
+                    <strong style={{ color: '#fff', fontWeight: 600 }}>{children}</strong>
+                  ),
+                  ul: ({ children }) => (
+                    <ul style={{ paddingLeft: '1.25rem', marginBottom: '0.65rem', color: 'inherit' }}>{children}</ul>
+                  ),
+                  ol: ({ children }) => (
+                    <ol style={{ paddingLeft: '1.25rem', marginBottom: '0.65rem', color: 'inherit' }}>{children}</ol>
+                  ),
+                  li: ({ children }) => (
+                    <li style={{ marginBottom: '0.25rem', lineHeight: '1.7', color: 'inherit' }}>{children}</li>
+                  ),
+                  code: ({ inline, children }) => inline
+                    ? <code style={{ background: 'rgba(0,210,255,0.1)', color: '#00d2ff', padding: '1px 5px', borderRadius: 4, fontSize: '0.8em' }}>{children}</code>
+                    : <code>{children}</code>,
+                  pre: ({ children }) => (
+                    <pre style={{ background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '0.75rem 1rem', overflowX: 'auto', marginBottom: '0.65rem', fontSize: '0.8em' }}>{children}</pre>
+                  ),
+                }}
+              >
+                {formatContent(streamingText)}
+              </ReactMarkdown>
             </div>
           </div>
         </div>
