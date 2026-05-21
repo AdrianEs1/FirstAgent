@@ -12,9 +12,7 @@
 
 import { getValidAccessToken } from '../services/authservice';
 
-const API_BASE = import.meta.env
-  ? `http://${import.meta.env.VITE_API_URL_LOC}`
-  : `https://${import.meta.env.VITE_API_URL_PROD}`;
+const API_BASE = import.meta.env.VITE_API_URL;
 
 const STREAM_TIMEOUT_MS = 60_000;
 
