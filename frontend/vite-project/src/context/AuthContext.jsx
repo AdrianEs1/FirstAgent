@@ -48,7 +48,7 @@ function AuthProvider({ children }) {
     try {
       const token = localStorage.getItem("token");
       if (token) {
-        await fetch(`${VITE_API_URL}api/auth/logout`, {
+        await fetch(`${VITE_API_URL}/api/auth/logout`, {
           method: "POST",
           credentials: "include",
           headers: {
