@@ -8,6 +8,7 @@ import SidebarRight from "../components/SidebarRight";
 import ChatArea from "../components/ChatArea";
 import NotificationDeleteAccount from "../components/NotificationDeleteAccount";
 import DeleteArchiveConversation from "../components/DeleteArchiveConversation";
+import VoiceAgent from "../components/VoiceAgent";
 
 import {
   fetchConversations,
@@ -19,9 +20,10 @@ import {
   connectOAuth,
   disconnectOAuth,
 } from "../services/agentServices";
-import { Menu, X, Send, Mail, Sheet, Users, Target } from "lucide-react";
+// 2. Traemos Mic y MicOff para el botón de voz
+import { Menu, X, Send, Mail, Sheet, Users } from "lucide-react";
 
-// ─── Hex background SVG (memo-ized as static string) ───────────────────────
+// ─── Hex background SVG ───────────────────────────────────────────────────
 const HEX_ROWS = [
   [60, 120, 180, 240, 300, 360, 420, 480, 540],
   [30, 90, 150, 210, 270, 330, 390, 450, 510, 570],
@@ -62,7 +64,6 @@ function HexBackground() {
   );
 }
 
-// ─── Wave accent ────────────────────────────────────────────────────────────
 function WaveAccent() {
   return (
     <svg
@@ -78,16 +79,11 @@ function WaveAccent() {
   );
 }
 
-// ─── Quick-action chips ──────────────────────────────────────────────────────
 const CHIPS = ["Revisar correos", "Crear tarea", "Resumir archivo", "Agendar reunión"];
 
-// ─── Main component ──────────────────────────────────────────────────────────
 function AgentPage() {
   const { user } = useAuth();
   const textareaRef = useRef(null);
-
-  // ── Auto-resize textarea ─────────────────────────────────────────────────
-
 
   const {
     isSending,
@@ -96,8 +92,6 @@ function AgentPage() {
     sendMessage: sendSSEMessage,
     addEventListener,
   } = useSSE();
-
-
 
   // Estados principales
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -118,11 +112,9 @@ function AgentPage() {
     { id: 'google:gmail', name: 'Gmail', icon: Mail, color: 'text-red-500' },
     { id: 'google:sheets', name: 'Sheets', icon: Sheet, color: 'text-green-500' },
     { id: 'microsoft:teams', name: 'Teams', icon: Users, color: 'text-blue-500' }
-    //{ id: 'hubspot:crm', name: 'HubSpot', icon: Target, color: 'text-orange-500' }
   ];
 
   const [files, setFiles] = useState([]);
-
 
   const handleGetFiles = async () => {
     try {
@@ -150,33 +142,23 @@ function AgentPage() {
     handleGetFiles();
   }, []);
 
-  // ── Cargar datos iniciales ────────────────────────────────────────────────
   useEffect(() => {
     loadConversations();
     checkOAuthStatus();
   }, []);
 
-  // ── ELIMINADO: useEffect de connect(token) — SSE no necesita conexión previa
-
-  // ── ELIMINADO: useEffect de addEventListener('completed', ...) 
-  //    La respuesta final ahora llega como valor resuelto de la Promise
-  //    en handleSendMessage, lo que simplifica mucho el flujo.
-
-  // ── Auto-resize textarea ──────────────────────────────────────────────────
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
-      textarea.style.height = Math.min(textarea.scrollHeight, 200) + "px"; // ← agregar límite
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + "px";
     }
   }, [newMessage]);
 
-  // ── Persistir vista activa/archivada ─────────────────────────────────────
   useEffect(() => {
     localStorage.setItem("conv_view", showArchived ? "archived" : "active");
   }, [showArchived]);
 
-  // ── Cargar conversaciones ─────────────────────────────────────────────────
   const loadConversations = async () => {
     try {
       setLoadingConversations(true);
@@ -186,27 +168,23 @@ function AgentPage() {
       setActiveConversationId(null);
       setMessages([]);
     } catch (error) {
-      //console.error("Error cargando conversaciones:", error);
-    } finally {
+      // Manejo de errores
+    } bits: {
       setLoadingConversations(false);
     }
   };
 
-  // ── Cargar mensajes de una conversación ──────────────────────────────────
   const loadConversationMessages = async (conversationId) => {
     try {
       const data = await fetchConversationById(conversationId);
       setMessages(data.messages || []);
     } catch (error) {
-      //console.error("Error cargando mensajes:", error);
       setMessages([]);
     }
   };
 
-  // ── OAuth ─────────────────────────────────────────────────────────────────
   const checkOAuthStatus = async () => {
     const integrations = ["google:gmail", "google:sheets", "microsoft:teams"];
-
     try {
       const statuses = await Promise.all(
         integrations.map((i) =>
@@ -221,7 +199,7 @@ function AgentPage() {
 
       setConnectedApps((prev) => ({ ...prev, ...newStates }));
     } catch (error) {
-      //console.error("Error verificando OAuth:", error);
+      // Manejo de errores
     }
   };
 
@@ -235,7 +213,6 @@ function AgentPage() {
         await checkOAuthStatus();
         alert(`${appName} desconectado exitosamente`);
       } catch (error) {
-        //console.error(`Error desconectando ${appName}:`, error);
         alert(`Error al desconectar ${appName}`);
       }
     } else {
@@ -247,45 +224,35 @@ function AgentPage() {
         if (result?.connected) {
           setConnectedApps(prev => ({ ...prev, [appName]: true }));
         }
-
         await checkOAuthStatus();
         alert(`${appName} conectado exitosamente`);
       } catch (error) {
-        //console.error(`❌ Error conectando ${appName}:`, error);
         alert(`Error al conectar ${appName}`);
         await checkOAuthStatus();
       }
     }
   };
 
-  // ── Enviar mensaje ────────────────────────────────────────────────────────
-  // Cambios vs versión WS:
-  //  1. sendSSEMessage es async → await directo, sin listener 'completed' separado
-  //  2. La respuesta del agente llega como valor de retorno de la Promise
-  //  3. setLoading se controla aquí mismo, no en un useEffect externo
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || loading) return;
+  const handleSendMessage = async (e, messageOverride = null) => {
+    if (e && e.preventDefault) e.preventDefault(); // 1. Evita el error si no viene de un formulario
+    const messageToSend = messageOverride || newMessage;
+
+    if (!messageToSend.trim() || loading) return;
 
     const userMsg = {
       id: `temp-${Date.now()}`,
       role: "user",
-      content: newMessage,
+      content: messageToSend,  // ← antes era newMessage
       created_at: new Date().toISOString(),
     };
 
     setMessages(prev => [...prev, userMsg]);
-    const messageToSend = newMessage;
     setNewMessage("");
     setLoading(true);
 
     try {
-      // sendSSEMessage abre el stream y resuelve cuando llega "completed"
       const data = await sendSSEMessage(messageToSend, activeConversationId);
 
-      //console.log("✅ Mensaje completado:", data);
-
-      // Agregar respuesta del agente
       const botMsg = {
         id: `temp-${Date.now()}`,
         role: "assistant",
@@ -294,7 +261,6 @@ function AgentPage() {
       };
       setMessages(prev => [...prev, botMsg]);
 
-      // Actualizar conversación si es nueva
       if (data.data?.conversation_id && !activeConversationId) {
         setConversations(prev => {
           const exists = prev.some(conv => conv.id === data.data.conversation_id);
@@ -312,7 +278,6 @@ function AgentPage() {
       }
 
     } catch (error) {
-      //console.error("Error enviando mensaje:", error);
       setMessages(prev => [...prev, {
         id: `temp-${Date.now() + 1}`,
         role: "assistant",
@@ -324,7 +289,6 @@ function AgentPage() {
     }
   };
 
-  // ── Conversaciones ────────────────────────────────────────────────────────
   const handleNewConversation = () => {
     setActiveConversationId(null);
     setMessages([]);
@@ -343,9 +307,6 @@ function AgentPage() {
   const activeConversations = conversations.filter(c => c.status !== "archived");
   const archivedConversations = conversations.filter(c => c.status === "archived");
 
-  // ─────────────────────────────────────────────────────────────────────────
-
-  // ── Loading screen ────────────────────────────────────────────────────────
   if (loadingConversations) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#050d1f" }}>
@@ -365,11 +326,8 @@ function AgentPage() {
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: "#050d1f" }}>
-
-      {/* HEADER */}
       <Header
         apps={apps}
         onConnectApp={handleConnectApp}
@@ -380,10 +338,8 @@ function AgentPage() {
         onDeleteFile={handleDeleteFile}
       />
 
-      {/* BODY */}
       <div className="flex flex-1 overflow-hidden relative">
-
-        {/* Mobile sidebar toggle */}
+        {/* Mobile menu toggle */}
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
           className="absolute top-3 left-3 md:hidden z-30 p-2 rounded-lg transition"
@@ -393,12 +349,10 @@ function AgentPage() {
           {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
-        {/* Mobile overlay */}
         {isSidebarOpen && (
           <div className="fixed inset-0 bg-black/60 z-40 md:hidden" onClick={() => setIsSidebarOpen(false)} />
         )}
 
-        {/* SIDEBAR IZQUIERDO */}
         <Sidebar
           conversations={showArchived ? archivedConversations : activeConversations}
           activeConversationId={activeConversationId}
@@ -409,19 +363,12 @@ function AgentPage() {
           onClose={() => setIsSidebarOpen(false)}
         />
 
-        {/* ÁREA DE CHAT */}
-        <div
-          className="flex flex-col flex-1 overflow-hidden relative"
-          style={{ background: "#07111f" }}
-        >
-          {/* Hex background siempre visible */}
+        <div className="flex flex-col flex-1 overflow-hidden relative" style={{ background: "#07111f" }}>
           <HexBackground />
 
-          {/* Mensajes o pantalla de bienvenida */}
           <div className="flex-1 overflow-y-auto pt-14 md:pt-0 relative z-10">
             {!activeConversationId && messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 px-4 text-center relative">
-                {/* Orb */}
                 <div
                   className="flex items-center justify-center rounded-full mb-2"
                   style={{
@@ -440,7 +387,6 @@ function AgentPage() {
                 <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
                   Escribe un mensaje para empezar una nueva conversación
                 </p>
-                {/* Chips */}
                 <div className="flex flex-wrap justify-center gap-2 mt-3">
                   {CHIPS.map((chip) => (
                     <button
@@ -482,10 +428,9 @@ function AgentPage() {
             )}
           </div>
 
-          {/* Wave decorativa */}
           <WaveAccent />
 
-          {/* INPUT */}
+          {/* FORMULARIO DE ENTRADA CON BOTÓN DE VOZ */}
           <form
             onSubmit={handleSendMessage}
             className="relative z-10 flex-shrink-0 px-3 md:px-4 pb-4 pt-2 mb-6"
@@ -493,7 +438,6 @@ function AgentPage() {
           >
             <div className="max-w-4xl mx-auto flex items-center gap-2 md:gap-3">
 
-              {/* Borde animado */}
               <div className="flex-1 relative rounded-xl p-[2px] overflow-hidden">
                 <div className="animated-border" />
                 <div className="relative rounded-[10px]" style={{ background: "#0d1832" }}>
@@ -507,7 +451,7 @@ function AgentPage() {
                         handleSendMessage(e);
                       }
                     }}
-                    placeholder="Escribe tu mensaje..."
+                    placeholder={"Escribe tu mensaje..."}
                     rows={1}
                     className="block w-full px-3 md:px-4 py-2.5 bg-transparent focus:ring-0 focus:outline-none resize-none overflow-y-auto text-sm md:text-base"
                     style={{
@@ -520,7 +464,16 @@ function AgentPage() {
                 </div>
               </div>
 
-              {/* Botón enviar */}
+              {/* 4. BOTÓN INTERACTIVO DE AUDIO */}
+              <VoiceAgent 
+                onSend={(transcript) => {
+                  // Seteamos y enviamos en el mismo lugar, sin race condition
+                  setNewMessage(transcript);
+                  // Usamos el transcript directo en vez del estado
+                  handleSendMessage(null, transcript);
+                }}
+              />
+
               <button
                 type="submit"
                 disabled={loading || !newMessage.trim()}
@@ -540,7 +493,6 @@ function AgentPage() {
           </form>
         </div>
 
-        {/* SIDEBAR DERECHO */}
         <aside
           className="hidden md:flex flex-col flex-shrink-0 overflow-y-auto"
           style={{
@@ -559,17 +511,14 @@ function AgentPage() {
             onDeleteFile={handleDeleteFile}
           />
         </aside>
-
       </div>
 
-      {/* Modal eliminar cuenta */}
       {showDeleteAccountModal && (
         <div className="fixed inset-0 flex justify-center items-center z-50 p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
           <NotificationDeleteAccount onClose={() => setShowDeleteAccountModal(false)} />
         </div>
       )}
 
-      {/* Modal conversación */}
       {conversationModal && (
         <div className="fixed inset-0 flex justify-center items-center z-50 p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
           <div className="w-full max-w-md relative mx-4 rounded-2xl overflow-hidden" style={{ background: "#0d1832", border: "0.5px solid rgba(255,255,255,0.1)" }}>
@@ -577,8 +526,6 @@ function AgentPage() {
               onClick={() => setConversationModal(null)}
               className="absolute top-4 right-4 z-10 p-1 rounded-lg transition"
               style={{ color: "rgba(255,255,255,0.4)" }}
-              onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
               aria-label="Cerrar modal"
             >
               <X size={22} />
@@ -602,7 +549,6 @@ function AgentPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
