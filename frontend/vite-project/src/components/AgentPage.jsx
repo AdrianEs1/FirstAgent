@@ -233,17 +233,25 @@ function AgentPage() {
     }
   };
 
-  const handleSendMessage = async (e, messageOverride = null) => {
+  const handleSendMessage = async (e, messageOverride = null, audioBase64 = null) => {
     if (e && e.preventDefault) e.preventDefault(); // 1. Evita el error si no viene de un formulario
+
+    console.log("📨 handleSendMessage:", { 
+      messageOverride, 
+      audioBase64Length: audioBase64?.length 
+    });
+    
     const messageToSend = messageOverride || newMessage;
 
-    if (!messageToSend.trim() || loading) return;
+    // Permitir envío si hay audio aunque no haya texto
+    if ((!messageToSend.trim() && !audioBase64) || loading) return;
 
     const userMsg = {
       id: `temp-${Date.now()}`,
       role: "user",
-      content: messageToSend,  // ← antes era newMessage
+      content: messageToSend || "🎤 Mensaje en modo voz",  // ← mostrar algo si no hay texto
       created_at: new Date().toISOString(),
+      
     };
 
     setMessages(prev => [...prev, userMsg]);
@@ -251,7 +259,7 @@ function AgentPage() {
     setLoading(true);
 
     try {
-      const data = await sendSSEMessage(messageToSend, activeConversationId);
+      const data = await sendSSEMessage(messageToSend, activeConversationId, audioBase64);
 
       const botMsg = {
         id: `temp-${Date.now()}`,
@@ -466,11 +474,11 @@ function AgentPage() {
 
               {/* 4. BOTÓN INTERACTIVO DE AUDIO */}
               <VoiceAgent 
-                onSend={(transcript) => {
-                  // Seteamos y enviamos en el mismo lugar, sin race condition
-                  setNewMessage(transcript);
-                  // Usamos el transcript directo en vez del estado
-                  handleSendMessage(null, transcript);
+                onSend={(audio_base64) => {
+                  console.log("🎤 VoiceAgent onSend recibido:", { 
+                    audio_base64Length: audio_base64?.length 
+                  });
+                  handleSendMessage(null, "", audio_base64);
                 }}
               />
 

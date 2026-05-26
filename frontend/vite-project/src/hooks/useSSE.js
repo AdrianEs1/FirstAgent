@@ -11,20 +11,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { sseService } from '../services/sseService';
 
-// Lista centralizada — debe coincidir exactamente con PROGRESS_EVENTS en sseService.js
-// y con los eventos que emite el orquestador en el backend.
-const PROGRESS_EVENTS = [
-  'validating',
-  'analyzing',   // clasificando intent
-  'loading',     // cargando herramientas
-  'connecting',  // iniciando sesión ADK
-  'thinking',    // agente procesando
-  'planning',    // planificando pasos
-  'executing',   // ejecutando tool
-  'processing',  // procesando resultado de tool
-  'saving',      // guardando resultados
-  'warning',     // advertencia no fatal
-];
 
 export function useSSE() {
   const [isSending, setIsSending]           = useState(false);
@@ -54,16 +40,19 @@ export function useSSE() {
     return () => sseService.off('chunk', chunkHandler);
   }, []);
 
-  // ── Listeners de progreso ─────────────────────────────────────────────────
   useEffect(() => {
+    const progressEvents = [
+      'validating', 'analyzing', 'loading', 'connecting',
+      'thinking', 'planning', 'executing', 'processing', 'saving', 'warning',
+    ];
+
     const progressHandler = (data) => {
       setCurrentEvent({ type: data.type, message: data.message, ...data });
     };
 
-    PROGRESS_EVENTS.forEach(type => sseService.on(type, progressHandler));
-
+    progressEvents.forEach(type => sseService.on(type, progressHandler));
     return () => {
-      PROGRESS_EVENTS.forEach(type => sseService.off(type, progressHandler));
+      progressEvents.forEach(type => sseService.off(type, progressHandler));
     };
   }, []);
 
@@ -91,7 +80,7 @@ export function useSSE() {
    * @param {string|null} conversationId
    * @returns {Promise<object>} datos del evento completed
    */
-  const sendMessage = useCallback((message, conversationId = null) => {
+  const sendMessage = useCallback((message, conversationId = null, audioBase64 = null) => {
     setIsSending(true);
     setCurrentEvent(null);
     setError(null);
@@ -130,7 +119,7 @@ export function useSSE() {
 
       // Lanzar stream — sendMessage es async pero no esperamos aquí;
       // el resultado llega por los eventos completed/error de arriba.
-      sseService.sendMessage(message, conversationId).catch((err) => {
+      sseService.sendMessage(message, conversationId, audioBase64).catch((err) => {
         sseService.off('completed', onCompleted);
         sseService.off('error',     onError);
         oneShotRef.current = { onCompleted: null, onError: null };

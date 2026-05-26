@@ -3,53 +3,48 @@ import { Mic, MicOff } from "lucide-react";
 
 export function VoiceAgent({ onSend, className = "" }) {
   const [listening, setListening] = useState(false);
-  const recognitionRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
 
-  const toggleListening = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      alert("Tu navegador no soporta reconocimiento de voz. Usa Chrome.");
-      return;
-    }
-
+  const toggleListening = async () => {
     if (listening) {
-      recognitionRef.current?.stop();
+      mediaRecorderRef.current?.stop();
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "es-CO";
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      chunksRef.current = [];
 
-    recognition.onstart = () => {
-      console.log("🎤 Micrófono activado");
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        setListening(false);
+        stream.getTracks().forEach(t => t.stop());
+
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const arrayBuffer = await blob.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+        console.log("🎤 Audio grabado:", { 
+          blobSize: blob.size, 
+          base64Length: base64.length,
+          preview: base64.substring(0, 50)
+        });
+
+        if (onSend) onSend(base64);
+      };
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
       setListening(true);
-    };
-
-    recognition.onresult = (e) => {
-      const transcript = e.results[0][0].transcript;
-      console.log("✅ Transcript:", transcript);
-      if (transcript && onSend) onSend(transcript);
-    };
-
-    recognition.onerror = (e) => {
-      console.log("❌ Error código:", e.error, "| mensaje:", e.message);
-      setListening(false);
-    };
-
-    recognition.onend = () => {
-      console.log("🔴 Micrófono desactivado");
-      setListening(false);
-    };
-
-    recognition.onnomatch = () => {
-      console.log("⚠️ No se reconoció ninguna palabra");
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
+    } catch (err) {
+      console.error("❌ Error accediendo al micrófono:", err);
+      alert("No se pudo acceder al micrófono.");
+    }
   };
 
   return (
@@ -58,27 +53,17 @@ export function VoiceAgent({ onSend, className = "" }) {
       onClick={toggleListening}
       className={`flex items-center justify-center flex-shrink-0 rounded-xl transition relative group ${className}`}
       style={{
-        width: 44,
-        height: 44,
-        background: listening
-          ? "rgba(239, 68, 68, 0.18)"
-          : "rgba(255, 255, 255, 0.05)",
-        border: listening
-          ? "1px solid rgba(239, 68, 68, 0.45)"
-          : "1px solid rgba(255, 255, 255, 0.08)",
+        width: 44, height: 44,
+        background: listening ? "rgba(239, 68, 68, 0.18)" : "rgba(255, 255, 255, 0.05)",
+        border: listening ? "1px solid rgba(239, 68, 68, 0.45)" : "1px solid rgba(255, 255, 255, 0.08)",
         color: listening ? "#f87171" : "rgba(255, 255, 255, 0.6)",
       }}
       title={listening ? "Detener grabación" : "Dictar mensaje"}
-      aria-label="Dictar mensaje por voz"
     >
-      {listening && (
-        <span className="absolute inset-0 rounded-xl bg-red-500/20 animate-ping pointer-events-none" />
-      )}
-      {listening ? (
-        <MicOff size={18} className="animate-pulse" />
-      ) : (
-        <Mic size={18} className="group-hover:text-white transition-colors" />
-      )}
+      {listening && <span className="absolute inset-0 rounded-xl bg-red-500/20 animate-ping pointer-events-none" />}
+      {listening
+        ? <MicOff size={18} className="animate-pulse" />
+        : <Mic size={18} className="group-hover:text-white transition-colors" />}
     </button>
   );
 }

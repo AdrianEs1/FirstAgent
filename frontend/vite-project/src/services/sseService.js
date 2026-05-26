@@ -16,24 +16,11 @@ const API_BASE = import.meta.env.VITE_API_URL;
 
 const STREAM_TIMEOUT_MS = 60_000;
 
-const PROGRESS_EVENTS = [
-  'validating',
-  'analyzing',
-  'loading',
-  'connecting',
-  'thinking',
-  'planning',
-  'executing',
-  'processing',
-  'saving',
-  'warning',
-];
-
 class SSEService {
   constructor() {
     this.sessionId = this._getOrCreateSessionId();
     this.messageHandlers = new Map();
-    this.activeSource = null;
+    this._activeReader = null;
     this._streamTimeout = null;
   }
 
@@ -74,9 +61,7 @@ class SSEService {
 
   _dispatch(eventType, data) {
     console.log('[SSE DISPATCH]', eventType, data);
-
     const handlers = this.messageHandlers.get(eventType) || [];
-
     handlers.forEach(h => {
       try {
         h(data);
@@ -88,31 +73,28 @@ class SSEService {
 
   // ─── API flow ────────────────────────────────────────────
 
-  async sendMessage(message, conversationId = null) {
+  async sendMessage(message, conversationId = null, audioBase64 = null) {
     this._closeActiveSource();
 
-    let request_id;
-
     try {
-      console.log('[SSE] Sending message:', { message, conversationId });
-
-      request_id = await this._postMessage(message, conversationId);
+      console.log('[SSE] Sending message:', { message, conversationId, audioBase64Length: audioBase64?.length });
+      await this._openStream(message, conversationId, audioBase64);
     } catch (err) {
+      console.error('[SSE] Error enviando mensaje:', err);
       this._dispatch('error', {
         type: 'error',
         message: 'No se pudo enviar el mensaje al servidor. Intenta de nuevo.',
         error_type: 'SendError',
       });
-      return;
     }
-
-    this._openStream(request_id);
   }
 
-  async _postMessage(message, conversationId) {
+  // ─── STREAM SSE via fetch ─────────────────────────────────
+
+  async _openStream(message, conversationId, audioBase64 = null) {
     const token = await getValidAccessToken();
-    const t0 = Date.now()
-    const response = await fetch(`${API_BASE}/agent/send`, {
+
+    const response = await fetch(`${API_BASE}/agent/chat`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -122,49 +104,37 @@ class SSEService {
         message,
         session_id: this.sessionId,
         conversation_id: conversationId ?? undefined,
+        audio_base64: audioBase64 ?? undefined,
       }),
     });
-    console.log(`[POST] took: ${Date.now() - t0}ms`)
-
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       throw new Error(body.detail || `HTTP ${response.status}`);
     }
 
-    const { request_id } = await response.json();
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    this._activeReader = reader;
 
-    if (!request_id) {
-      throw new Error('El servidor no devolvió request_id');
-    }
-
-    return request_id;
-  }
-
-  // ─── STREAM SSE ──────────────────────────────────────────
-
-  _openStream(request_id) {
-    const t1 = Date.now()
-    const url = `${API_BASE}/agent/stream/${request_id}`;
-    console.log('[SSE] Opening stream:', url);
-
-    const source = new EventSource(url);
-    this.activeSource = source;
-
-    // Timeout
+    // Timeout global del stream
     this._streamTimeout = setTimeout(() => {
       console.warn('[SSE] Timeout alcanzado');
-
       this._dispatch('error', {
         type: 'error',
         message: 'El agente tardó demasiado en responder. Intenta de nuevo.',
         error_type: 'TimeoutError',
       });
-
       this._closeActiveSource();
     }, STREAM_TIMEOUT_MS);
 
-    // Helper seguro
+    await this._readStream(reader, decoder);
+  }
+
+  async _readStream(reader, decoder) {
+    let buffer = '';
+    let currentEvent = null;
+
     const safeParse = (raw, label) => {
       try {
         return JSON.parse(raw);
@@ -174,85 +144,44 @@ class SSEService {
       }
     };
 
-    // Eventos de progreso
-    PROGRESS_EVENTS.forEach(eventType => {
-      source.addEventListener(eventType, (e) => {
-        console.log('[SSE RAW EVENT]', eventType, e.data)
-        console.log(`[POST→SSE gap]: ${Date.now() - t1}ms`);
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-        const data = safeParse(e.data, eventType);
-        if (!data) return;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // última línea incompleta — esperar más datos
 
-        console.log('[SSE EVENT]', eventType, data);
-
-        this._dispatch(eventType, { type: eventType, ...data });
-      });
-    });
-
-    // Evento chunk — fragmentos de texto en tiempo real del LLM
-    source.addEventListener('chunk', (e) => {
-      const data = safeParse(e.data, 'chunk');
-      if (!data) return;
-
-      this._dispatch('chunk', { type: 'chunk', ...data });
-    });
-
-    // Fallback (MUY IMPORTANTE)
-    source.onmessage = (e) => {
-      console.log('[SSE DEFAULT EVENT]', e.data);
-
-      const data = safeParse(e.data, 'default');
-      if (!data) return;
-
-      this._dispatch('message', { type: 'message', ...data });
-    };
-
-    // Completed
-    source.addEventListener('completed', (e) => {
-      console.log('[SSE COMPLETED RAW]', e.data);
-
-      const data = safeParse(e.data, 'completed');
-      if (!data) return;
-
-      console.log('[SSE COMPLETED]', data);
-
-      this._dispatch('completed', { type: 'completed', ...data });
-
-      this._closeActiveSource();
-    });
-
-    // Error del backend (evento SSE)
-    source.addEventListener('error', (e) => {
-      console.warn('[SSE BACKEND ERROR RAW]', e.data);
-
-      const data = safeParse(e.data, 'error');
-
-      if (data) {
-        console.warn('[SSE BACKEND ERROR]', data);
-
-        this._dispatch('error', { type: 'error', ...data });
-      } else {
-        console.warn('[SSE] Error sin payload JSON');
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            currentEvent = line.slice(6).trim();
+          } else if (line.startsWith('data:')) {
+            const raw = line.slice(5).trim();
+            if (!raw) continue;
+            const data = safeParse(raw, currentEvent || 'unknown');
+            if (!data) continue;
+            console.log('[SSE EVENT]', currentEvent, data);
+            if (currentEvent) {
+              this._dispatch(currentEvent, { type: currentEvent, ...data });
+            }
+            currentEvent = null;
+          }
+          // Líneas vacías y comentarios ": heartbeat" se ignoran
+        }
       }
-
-      this._closeActiveSource();
-    });
-
-    // Error de red
-    source.onerror = (err) => {
-      console.error('[SSE NETWORK ERROR]', err, source.readyState);
-
-      if (source.readyState === EventSource.CLOSED) {
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('[SSE NETWORK ERROR]', err);
         this._dispatch('error', {
           type: 'error',
-          message:
-            'Conexión perdida con el servidor. Por favor, intenta de nuevo.',
+          message: 'Conexión perdida con el servidor. Por favor, intenta de nuevo.',
           error_type: 'ConnectionError',
         });
-
-        this._closeActiveSource();
       }
-    };
+    } finally {
+      this._closeActiveSource();
+    }
   }
 
   // ─── Utils ───────────────────────────────────────────────
@@ -262,12 +191,9 @@ class SSEService {
       clearTimeout(this._streamTimeout);
       this._streamTimeout = null;
     }
-
-    if (this.activeSource) {
-      console.log('[SSE] Closing stream');
-
-      this.activeSource.close();
-      this.activeSource = null;
+    if (this._activeReader) {
+      this._activeReader.cancel();
+      this._activeReader = null;
     }
   }
 
@@ -276,10 +202,7 @@ class SSEService {
   }
 
   isConnected() {
-    return (
-      this.activeSource !== null &&
-      this.activeSource.readyState !== EventSource.CLOSED
-    );
+    return this._activeReader !== null;
   }
 }
 
