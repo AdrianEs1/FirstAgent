@@ -3,7 +3,7 @@ import api, {apipublic} from './api';
 //Función para RegistrarUsuario
 export const fetchAgentRegister = async (data) => {
   try {
-    const response = await api.post(`/api/auth/register`, data); //endpoint register
+    const response = await apipublic.post(`/api/auth/register`, data); //endpoint register
     return response.data; //token o mesaje JSON
   } catch (error) {
     throw error
@@ -11,11 +11,10 @@ export const fetchAgentRegister = async (data) => {
 };
 
 
-
 //función para IniciarSesión
 export const fetchAgentLogin = async (data) => {
   try{
-    const response = await api.post(`/api/auth/login`, 
+    const response = await apipublic.post(`/api/auth/login`, 
       data, 
       ); //endpoint login
     

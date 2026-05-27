@@ -15,6 +15,8 @@ const apipublic = axios.create({
 });
 
 const PUBLIC_ROUTES = [
+  "/api/auth/login",
+  "/api/auth/register",
   "/api/auth/forgot-password",
   "/api/auth/reset-password",
 ];
@@ -44,7 +46,7 @@ const refreshAccessToken = async () => {
     localStorage.setItem('token', newAccessToken);
     return { token: newAccessToken, usuario }; // ✅ Devuelve un objeto
   } catch (error) {
-    console.error("Error al renovar el token:", error);
+    console.error("Error al renovar el token:", error?.response?.data?.detail);
     throw error;
   }
 };
@@ -86,7 +88,7 @@ api.interceptors.response.use(
     if (originalRequest.url.includes("/api/auth/refresh")) {
       console.error("❌ Refresh token inválido");
       localStorage.removeItem("token");
-      window.location.href = "/login";
+      window.location.href = "/";
       return Promise.reject(error);
     }
 
@@ -122,7 +124,7 @@ api.interceptors.response.use(
         processQueue(refreshError, null);
         localStorage.removeItem("token");
         delete api.defaults.headers.common.Authorization;
-        window.location.href = "/login";
+        window.location.href = "/";
 
         return Promise.reject(refreshError);
       } finally {
