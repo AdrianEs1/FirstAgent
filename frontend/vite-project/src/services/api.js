@@ -12,6 +12,7 @@ const api = axios.create({
 
 const apipublic = axios.create({
   baseURL:VITE_API_URL,
+  withCredentials: true 
 });
 
 const PUBLIC_ROUTES = [
